@@ -41,11 +41,16 @@ import java.util.Calendar
 @Composable
 fun AddTransactionScreen(
     viewModel: ExpenseViewModel,
+    initialAmount: Double? = null,
+    initialType: TransactionType? = null,
+    initialNote: String = "",
     onNavigateBack: () -> Unit
 ) {
-    var transactionType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var amountText by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
+    var transactionType by remember { mutableStateOf(initialType ?: TransactionType.EXPENSE) }
+    var amountText by remember { 
+        mutableStateOf(initialAmount?.let { if (it > 0) it.toLong().toString() else "" } ?: "") 
+    }
+    var note by remember { mutableStateOf(initialNote) }
     var selectedCategoryId by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(1L) }
     var selectedTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
