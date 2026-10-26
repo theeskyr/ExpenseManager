@@ -35,7 +35,12 @@
    - Xuất toàn bộ lịch sử giao dịch ra file `.csv` chuẩn **UTF-8 BOM** (mở trực tiếp bằng Microsoft Excel hoặc Google Sheets trên điện thoại mà không bị lỗi font tiếng Việt).
    - Chia sẻ báo cáo nhanh qua Zalo, Gmail, Drive hoặc lưu vào bộ nhớ máy.
 
-6. **100% Offline & Bảo Mật Tuyệt Đối**:
+6. **Tự Động Đọc Biến Động Số Dư Ngân Hàng (Tối Ưu 0% Hao Pin)**:
+   - Tự động nhận diện thông báo từ các ngân hàng & ví điện tử: Vietcombank, MB Bank, Techcombank, TPBank, VPBank, ACB, BIDV, VietinBank, MoMo, ZaloPay, Viettel Money...
+   - Ngay khi có biến động số dư, app lập tức hiển thị thông báo nhắc nhở kèm số tiền. Chạm vào thông báo sẽ mở màn hình thêm giao dịch đã điền sẵn số tiền và tài khoản, bạn chỉ cần chọn danh mục và lưu trong 1 giây.
+   - **Cơ chế tối ưu pin tuyệt đối**: Sử dụng `NotificationListenerService` chuẩn Android (hoàn toàn là mô hình Event-driven do hệ điều hành kích hoạt khi có sự kiện, không chạy ngầm liên tục, không giữ CPU WakeLock, tiêu thụ 0% pin).
+
+7. **100% Offline & Bảo Mật Tuyệt Đối**:
    - Dữ liệu lưu cục bộ trong máy, không cần tạo tài khoản hay đăng nhập.
 
 ---
