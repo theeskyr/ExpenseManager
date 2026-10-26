@@ -52,6 +52,26 @@ class ExpenseViewModel(
         .map { it ?: 0.0 }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    val reserveBalance: StateFlow<Double> = repository.reserveBalance
+        .map { it ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val availableBalance: StateFlow<Double> = repository.availableBalance
+        .map { it ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Investments
+    val allInvestments: StateFlow<List<InvestmentEntity>> = repository.allInvestments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val totalInvested: StateFlow<Double> = repository.totalInvested
+        .map { it ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalInvestmentValue: StateFlow<Double> = repository.totalCurrentValue
+        .map { it ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
     private val currentMonth = Calendar.getInstance().get(Calendar.MONTH) + 1
     private val currentYear = Calendar.getInstance().get(Calendar.YEAR)
 
@@ -143,7 +163,7 @@ class ExpenseViewModel(
         }
     }
 
-    fun addAccount(name: String, type: AccountType, initialBalance: Double, colorHex: String) {
+    fun addAccount(name: String, type: AccountType, initialBalance: Double, colorHex: String, isReserve: Boolean = false) {
         viewModelScope.launch {
             repository.insertAccount(
                 AccountEntity(
@@ -151,9 +171,68 @@ class ExpenseViewModel(
                     type = type,
                     initialBalance = initialBalance,
                     currentBalance = initialBalance,
-                    colorHex = colorHex
+                    colorHex = colorHex,
+                    isReserve = isReserve
                 )
             )
+        }
+    }
+
+    // Investment Operations
+    fun addInvestment(
+        name: String,
+        type: InvestmentType,
+        amountInvested: Double,
+        currentValue: Double,
+        note: String
+    ) {
+        viewModelScope.launch {
+            repository.insertInvestment(
+                InvestmentEntity(
+                    name = name,
+                    type = type,
+                    amountInvested = amountInvested,
+                    currentValue = currentValue,
+                    note = note
+                )
+            )
+        }
+    }
+
+    fun deleteInvestment(investment: InvestmentEntity) {
+        viewModelScope.launch {
+            repository.deleteInvestment(investment)
+        }
+    }
+
+    fun requestAiInvestmentAnalysis(onComplete: () -> Unit) {
+        val investments = allInvestments.value
+        if (investments.isEmpty()) return
+
+        val sb = StringBuilder()
+        sb.appendLine("Tổng vốn đầu tư: ${CurrencyUtils.formatVnd(totalInvested.value)}")
+        sb.appendLine("Giá trị hiện tại: ${CurrencyUtils.formatVnd(totalInvestmentValue.value)}")
+        sb.appendLine("Chi tiết các danh mục:")
+        investments.forEach { inv ->
+            val diff = inv.currentValue - inv.amountInvested
+            val roi = if (inv.amountInvested > 0) (diff / inv.amountInvested * 100) else 0.0
+            sb.appendLine("- ${inv.name} (${inv.type}): Vốn ${CurrencyUtils.formatVnd(inv.amountInvested)}, Giá trị ${CurrencyUtils.formatVnd(inv.currentValue)}, Lời/Lỗ: ${String.format("%.1f", roi)}%")
+        }
+
+        val userPrompt = "Hãy phân tích danh mục đầu tư này và đưa ra nhận xét, đánh giá rủi ro và khuyến nghị quản lý vốn."
+        val userMsg = ChatMessage(sender = MessageSender.USER, text = userPrompt)
+        _chatMessages.value = _chatMessages.value + userMsg
+
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            val response = geminiManager.analyzeInvestmentPortfolio(sb.toString())
+            val aiMsg = ChatMessage(
+                sender = MessageSender.AI,
+                text = response.replyText
+            )
+            _chatMessages.value = _chatMessages.value + aiMsg
+            _isAiLoading.value = false
+            onComplete()
         }
     }
 

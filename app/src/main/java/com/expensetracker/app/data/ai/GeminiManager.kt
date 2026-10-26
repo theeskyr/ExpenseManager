@@ -30,13 +30,14 @@ class GeminiManager(context: Context) {
     companion object {
         private const val KEY_API_KEY = "gemini_api_key"
         private const val KEY_MODEL = "gemini_model_name"
-        const val DEFAULT_MODEL = "gemini-1.5-flash"
+        const val DEFAULT_MODEL = "gemini-3.1-flash-lite"
 
         val AVAILABLE_MODELS = listOf(
-            "gemini-1.5-flash" to "Gemini 1.5 Flash (Nhanh, nhẹ, quét bill chuẩn - Khuyên dùng)",
-            "gemini-1.5-pro" to "Gemini 1.5 Pro (Tư duy sâu, hóa đơn dài & phức tạp)",
-            "gemini-2.0-flash" to "Gemini 2.0 Flash (Thế hệ mới nhất, tốc độ cực nhanh)",
-            "gemini-2.0-flash-lite" to "Gemini 2.0 Flash Lite (Siêu nhẹ, tiết kiệm tài nguyên)"
+            "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Mặc định - Siêu nhanh, thông minh & tối ưu nhất)",
+            "gemini-2.5-flash-lite" to "Gemini 2.5 Flash Lite (Phản hồi tức thì, tiết kiệm)",
+            "gemini-2.0-flash" to "Gemini 2.0 Flash (Thế hệ mới, đa phương thức)",
+            "gemini-1.5-flash" to "Gemini 1.5 Flash (Ổn định, tối ưu hóa đơn)",
+            "gemini-1.5-pro" to "Gemini 1.5 Pro (Tư duy tài chính & đầu tư chuyên sâu)"
         )
     }
 
@@ -49,7 +50,12 @@ class GeminiManager(context: Context) {
     }
 
     fun getSelectedModel(): String {
-        return prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+        val saved = prefs.getString(KEY_MODEL, null)
+        return if (saved.isNullOrBlank() || saved == "gemini-1.5-flash") {
+            DEFAULT_MODEL
+        } else {
+            saved
+        }
     }
 
     fun setSelectedModel(model: String) {
@@ -145,6 +151,37 @@ class GeminiManager(context: Context) {
                 e.printStackTrace()
                 AiResponse(
                     replyText = "Lỗi khi phân tích hóa đơn: ${e.localizedMessage ?: "Không thể đọc ảnh, bạn vui lòng thử lại nhé."}"
+                )
+            }
+        }
+
+    suspend fun analyzeInvestmentPortfolio(portfolioDetails: String): AiResponse =
+        withContext(Dispatchers.IO) {
+            try {
+                if (!hasApiKey()) {
+                    return@withContext AiResponse(
+                        replyText = "Bạn chưa cấu hình Gemini API Key. Vui lòng nhập API Key để kích hoạt Trợ lý AI phân tích danh mục đầu tư nhé!"
+                    )
+                }
+
+                val prompt = """
+                    Tôi có danh mục tài sản và đầu tư như sau:
+                    $portfolioDetails
+                    
+                    Hãy đóng vai trò chuyên gia cố vấn tài chính cá nhân độc lập:
+                    1. Đánh giá tỷ lệ phân bổ rủi ro (giữa các tài sản an toàn như vàng, tiết kiệm với tài sản tăng trưởng như cổ phiếu, quỹ, crypto).
+                    2. Tính toán hiệu suất sinh lời (ROI) và nhận xét danh mục.
+                    3. Đưa ra 3 lời khuyên tài chính thiết thực cho người dùng tại Việt Nam về việc cân đối giữa chi tiêu sinh hoạt, quỹ dự phòng và tái đầu tư.
+                    Trình bày ngắn gọn, súc tích, định dạng bullet point rõ ràng dễ đọc.
+                """.trimIndent()
+
+                val response = getModel().generateContent(prompt)
+                val text = response.text ?: "Không thể phân tích dữ liệu đầu tư."
+                AiResponse(replyText = text)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                AiResponse(
+                    replyText = "Lỗi khi phân tích danh mục đầu tư: ${e.localizedMessage ?: "Vui lòng thử lại sau."}"
                 )
             }
         }

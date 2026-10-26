@@ -38,6 +38,7 @@ fun AccountsScreen(
     var accountName by remember { mutableStateOf("") }
     var initialBalanceText by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(AccountType.BANK) }
+    var isReserveInput by remember { mutableStateOf(false) }
 
     Scaffold(
         floatingActionButton = {
@@ -130,16 +131,34 @@ fun AccountsScreen(
                         Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = account.name,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = account.name,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+                                if (account.isReserve || account.type == AccountType.RESERVE) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFE0F2FE)
+                                    ) {
+                                        Text(
+                                            "🛡️ Dự trữ",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF0369A1),
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
                             val typeLabel = when (account.type) {
                                 AccountType.CASH -> "Tiền mặt"
                                 AccountType.BANK -> "Tài khoản ngân hàng"
                                 AccountType.E_WALLET -> "Ví điện tử"
                                 AccountType.CREDIT_CARD -> "Thẻ tín dụng"
+                                AccountType.RESERVE -> "Quỹ dự phòng khẩn cấp"
                             }
                             Text(
                                 text = typeLabel,
@@ -205,19 +224,40 @@ fun AccountsScreen(
                     Text("Loại tài khoản:", fontSize = 12.sp, color = Color(0xFF64748B))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         listOf(
                             AccountType.BANK to "Ngân hàng",
                             AccountType.E_WALLET to "Ví điện tử",
-                            AccountType.CASH to "Tiền mặt"
+                            AccountType.CASH to "Tiền mặt",
+                            AccountType.RESERVE to "Quỹ dự trữ"
                         ).forEach { (type, label) ->
                             FilterChip(
                                 selected = selectedType == type,
-                                onClick = { selectedType = type },
-                                label = { Text(label, fontSize = 11.sp) }
+                                onClick = {
+                                    selectedType = type
+                                    if (type == AccountType.RESERVE) isReserveInput = true
+                                },
+                                label = { Text(label, fontSize = 10.sp) }
                             )
                         }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isReserveInput,
+                            onCheckedChange = { isReserveInput = it },
+                            colors = CheckboxDefaults.colors(checkedColor = PrimaryGreen)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "🛡️ Đặt làm Nguồn tiền dự trữ (không tính vào tiền chi tiêu)",
+                            fontSize = 12.sp,
+                            color = Color(0xFF334155)
+                        )
                     }
                 }
             },
@@ -231,12 +271,14 @@ fun AccountsScreen(
                                 AccountType.E_WALLET -> "#E91E63"
                                 AccountType.CASH -> "#4CAF50"
                                 AccountType.CREDIT_CARD -> "#FF5722"
+                                AccountType.RESERVE -> "#0284C7"
                             }
                             viewModel.addAccount(
                                 name = accountName,
                                 type = selectedType,
                                 initialBalance = bal,
-                                colorHex = color
+                                colorHex = color,
+                                isReserve = isReserveInput || selectedType == AccountType.RESERVE
                             )
                             showAddDialog = false
                         }

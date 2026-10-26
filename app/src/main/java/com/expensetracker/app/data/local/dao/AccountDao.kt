@@ -15,6 +15,12 @@ interface AccountDao {
     @Query("SELECT SUM(currentBalance) FROM accounts")
     fun getTotalBalance(): Flow<Double?>
 
+    @Query("SELECT SUM(currentBalance) FROM accounts WHERE isReserve = 1 OR type = 'RESERVE'")
+    fun getReserveBalance(): Flow<Double?>
+
+    @Query("SELECT SUM(currentBalance) FROM accounts WHERE isReserve = 0 AND type != 'RESERVE'")
+    fun getAvailableBalance(): Flow<Double?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAccount(account: AccountEntity): Long
 

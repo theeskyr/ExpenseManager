@@ -1,9 +1,14 @@
 package com.expensetracker.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,6 +34,7 @@ import com.expensetracker.app.ui.screens.add.AddTransactionScreen
 import com.expensetracker.app.ui.screens.ai.AiAssistantScreen
 import com.expensetracker.app.ui.screens.budget.BudgetScreen
 import com.expensetracker.app.ui.screens.home.HomeScreen
+import com.expensetracker.app.ui.screens.investments.InvestmentScreen
 import com.expensetracker.app.ui.screens.settings.SettingsScreen
 import com.expensetracker.app.ui.screens.stats.StatisticsScreen
 import com.expensetracker.app.ui.theme.ExpenseTrackerTheme
@@ -40,6 +47,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Stats : Screen("stats", "Thống kê", Icons.Default.PieChart)
     object AiAssistant : Screen("ai_assistant", "Trợ lý AI", Icons.Default.SmartToy)
     object Budget : Screen("budget", "Ngân sách", Icons.Default.Savings)
+    object Investments : Screen("investments", "Đầu tư", Icons.Default.TrendingUp)
     object Accounts : Screen("accounts", "Ví tiền", Icons.Default.AccountBalanceWallet)
     object Settings : Screen("settings", "Cài đặt", Icons.Default.Settings)
     object AddTransaction : Screen("add_transaction", "Thêm", Icons.Default.Add)
@@ -55,6 +63,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Khởi tạo kênh thông báo ngân hàng với độ ưu tiên cao nhất
+        BankNotificationListenerService.createNotificationChannel(this)
+
         val extraNavigateToAdd = intent.getBooleanExtra(BankNotificationListenerService.EXTRA_NAVIGATE_TO_ADD, false)
         val extraAmount = intent.getDoubleExtra(BankNotificationListenerService.EXTRA_AMOUNT, 0.0)
         val extraTypeName = intent.getStringExtra(BankNotificationListenerService.EXTRA_TYPE)
@@ -63,6 +74,23 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ExpenseTrackerTheme {
+                // Xin quyền thông báo trên Android 13+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val permissionLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { /* Handled */ }
+
+                    LaunchedEffect(Unit) {
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                }
+
                 MainAppNavHost(
                     viewModel = viewModel,
                     initialNavigateToAdd = extraNavigateToAdd,
@@ -103,8 +131,8 @@ fun MainAppNavHost(
 
     Scaffold(
         bottomBar = {
-            // Hide bottom bar when in AddTransaction screen
-            if (currentRoute != Screen.AddTransaction.route) {
+            // Hide bottom bar when in AddTransaction screen or Investments
+            if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route) {
                 NavigationBar(
                     containerColor = Color.White,
                     tonalElevation = NavigationBarDefaults.Elevation
@@ -152,6 +180,9 @@ fun MainAppNavHost(
                     },
                     onNavigateToAi = {
                         navController.navigate(Screen.AiAssistant.route)
+                    },
+                    onNavigateToInvestments = {
+                        navController.navigate(Screen.Investments.route)
                     }
                 )
             }
@@ -159,10 +190,32 @@ fun MainAppNavHost(
                 StatisticsScreen(viewModel = viewModel)
             }
             composable(Screen.AiAssistant.route) {
-                AiAssistantScreen(viewModel = viewModel)
+                AiAssistantScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
             composable(Screen.Budget.route) {
                 BudgetScreen(viewModel = viewModel)
+            }
+            composable(Screen.Investments.route) {
+                InvestmentScreen(
+                    viewModel = viewModel,
+                    onNavigateToAi = {
+                        navController.navigate(Screen.AiAssistant.route)
+                    },
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
             composable(Screen.Accounts.route) {
                 AccountsScreen(viewModel = viewModel)

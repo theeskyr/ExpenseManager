@@ -1,7 +1,11 @@
 package com.expensetracker.app.ui.screens.settings
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
+import com.expensetracker.app.data.ai.GeminiManager
+import com.expensetracker.app.data.local.entity.TransactionType
+import com.expensetracker.app.data.service.BankNotificationListenerService
 import com.expensetracker.app.ui.theme.ExpenseRed
 import com.expensetracker.app.ui.theme.PrimaryGreen
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
@@ -112,7 +119,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Khi ngân hàng (Vietcombank, MB, Techcombank, TPBank, VPBank, MoMo...) gửi thông báo trừ tiền hoặc cộng tiền, ứng dụng sẽ lập tức hiển thị thông báo nhắc bạn chọn danh mục (Ăn uống, Mua sắm...) để lưu 1 chạm.",
+                        text = "Khi ngân hàng (Vietcombank, MB, Techcombank, TPBank, VPBank, MoMo...) gửi thông báo trừ/cộng tiền hoặc tin nhắn SMS, ứng dụng sẽ lập tức hiển thị thông báo nhắc bạn chọn mục chi tiêu để lưu 1 chạm.",
                         fontSize = 13.sp,
                         color = Color(0xFF64748B)
                     )
@@ -140,6 +147,31 @@ fun SettingsScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Diagnostic notes
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "💡 Hướng dẫn nhận thông báo nhạy nhất:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF334155)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "1. Bấm nút cấp quyền đọc thông báo bên dưới.\n2. Bật quyền gửi thông báo (Android 13+).\n3. Cài đặt chế độ Pin của app là 'Không hạn chế' (Unrestricted) trong cài đặt thiết bị để tránh bị hệ thống tắt.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B),
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Button(
@@ -158,6 +190,31 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                BankNotificationListenerService.showExpensePromptNotification(
+                                    context = context,
+                                    bankName = "Vietcombank",
+                                    amount = 55000.0,
+                                    type = TransactionType.EXPENSE,
+                                    note = "Thanh toán Phở bò (Test thông báo)"
+                                )
+                                Toast.makeText(context, "Đã gửi thông báo thử nghiệm! Hãy kiểm tra thanh thông báo.", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("🧪 Bắn thông báo thử nghiệm ngay", fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
@@ -165,7 +222,9 @@ fun SettingsScreen(
         // Gemini AI API Key Setting Card
         item {
             val apiKey by viewModel.geminiApiKey.collectAsState()
+            val currentModel by viewModel.selectedAiModel.collectAsState()
             var showKeyDialog by remember { mutableStateOf(false) }
+            var showModelDialog by remember { mutableStateOf(false) }
             var tempKey by remember { mutableStateOf("") }
 
             Card(
@@ -184,7 +243,7 @@ fun SettingsScreen(
                             Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen)
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Google Gemini AI API Key",
+                                text = "Trợ lý AI & Mô hình Gemini",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -194,23 +253,49 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (apiKey.isNotBlank()) "Trạng thái: Đã kết nối (Key: ${apiKey.take(6)}...${apiKey.takeLast(4)})" else "Trạng thái: Chưa cấu hình API Key",
+                        text = if (apiKey.isNotBlank()) "Trạng thái API Key: Đã kết nối (${apiKey.take(6)}...${apiKey.takeLast(4)})" else "Trạng thái: Chưa cấu hình API Key",
                         fontSize = 13.sp,
                         color = if (apiKey.isNotBlank()) Color(0xFF059669) else ExpenseRed,
                         fontWeight = FontWeight.Medium
                     )
 
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    val modelDisplayTitle = GeminiManager.AVAILABLE_MODELS.firstOrNull { it.first == currentModel }?.second ?: currentModel
+                    Text(
+                        text = "Model hiện tại: $modelDisplayTitle",
+                        fontSize = 12.sp,
+                        color = PrimaryGreen,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    OutlinedButton(
-                        onClick = {
-                            tempKey = apiKey
-                            showKeyDialog = true
-                        },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(if (apiKey.isNotBlank()) "Đổi Gemini API Key" else "Nhập Gemini API Key", fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = {
+                                tempKey = apiKey
+                                showKeyDialog = true
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(if (apiKey.isNotBlank()) "Đổi API Key" else "Nhập Key", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        Button(
+                            onClick = { showModelDialog = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Chọn Model", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
                     }
                 }
             }
@@ -250,6 +335,50 @@ fun SettingsScreen(
                     dismissButton = {
                         TextButton(onClick = { showKeyDialog = false }) {
                             Text("Hủy")
+                        }
+                    }
+                )
+            }
+
+            if (showModelDialog) {
+                AlertDialog(
+                    onDismissRequest = { showModelDialog = false },
+                    title = { Text("Chọn Model AI Gemini") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            GeminiManager.AVAILABLE_MODELS.forEach { (modelId, label) ->
+                                val isSelected = currentModel == modelId
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.updateAiModel(modelId)
+                                            showModelDialog = false
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = {
+                                            viewModel.updateAiModel(modelId)
+                                            showModelDialog = false
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) PrimaryGreen else Color(0xFF1E293B)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showModelDialog = false }) {
+                            Text("Đóng")
                         }
                     }
                 )

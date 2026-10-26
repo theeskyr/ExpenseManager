@@ -42,12 +42,21 @@ import com.expensetracker.app.ui.viewmodel.ChatMessage
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.ui.viewmodel.MessageSender
 import com.expensetracker.app.utils.CurrencyUtils
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiAssistantScreen(
-    viewModel: ExpenseViewModel
+    viewModel: ExpenseViewModel,
+    onNavigateBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -97,6 +106,11 @@ fun AiAssistantScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Trở về Trang chủ")
+                    }
+                },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -491,9 +505,18 @@ fun AiAssistantScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatBubble(message: ChatMessage) {
+    val context = LocalContext.current
     val isUser = message.sender == MessageSender.USER
+
+    val copyTextAction = {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Chat message", message.text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "Đã sao chép tin nhắn vào bộ nhớ tạm!", Toast.LENGTH_SHORT).show()
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -529,6 +552,10 @@ fun ChatBubble(message: ChatMessage) {
             }
 
             Surface(
+                modifier = Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = copyTextAction
+                ),
                 shape = RoundedCornerShape(
                     topStart = 16.dp,
                     topEnd = 16.dp,
@@ -546,6 +573,31 @@ fun ChatBubble(message: ChatMessage) {
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
+            }
+
+            // Copy button and timestamp row
+            Row(
+                modifier = Modifier
+                    .padding(top = 2.dp, start = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = com.expensetracker.app.utils.DateUtils.formatTime(message.timestamp),
+                    fontSize = 10.sp,
+                    color = Color(0xFF94A3B8)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    onClick = copyTextAction,
+                    modifier = Modifier.size(18.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = "Sao chép tin nhắn",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
             }
 
             // Auto-added Transaction Card Preview

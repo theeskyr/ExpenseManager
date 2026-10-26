@@ -7,7 +7,8 @@ enum class AccountType {
     CASH,           // Tiền mặt
     BANK,           // Tài khoản ngân hàng
     E_WALLET,       // Ví điện tử (Momo, ZaloPay...)
-    CREDIT_CARD     // Thẻ tín dụng
+    CREDIT_CARD,    // Thẻ tín dụng
+    RESERVE         // Quỹ dự phòng / Tiết kiệm khẩn cấp
 }
 
 @Entity(tableName = "accounts")
@@ -19,5 +20,6 @@ data class AccountEntity(
     val initialBalance: Double = 0.0,
     val currentBalance: Double = 0.0,
     val colorHex: String = "#4CAF50",
-    val iconName: String = "AccountBalanceWallet"
+    val iconName: String = "AccountBalanceWallet",
+    val isReserve: Boolean = false // Đánh dấu là nguồn tiền dự trữ
 )

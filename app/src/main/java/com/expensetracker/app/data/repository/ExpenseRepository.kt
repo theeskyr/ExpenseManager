@@ -4,6 +4,7 @@ import com.expensetracker.app.data.local.dao.AccountDao
 import com.expensetracker.app.data.local.dao.BudgetDao
 import com.expensetracker.app.data.local.dao.CategoryDao
 import com.expensetracker.app.data.local.dao.CategorySummary
+import com.expensetracker.app.data.local.dao.InvestmentDao
 import com.expensetracker.app.data.local.dao.TransactionDao
 import com.expensetracker.app.data.local.entity.*
 import kotlinx.coroutines.flow.Flow
@@ -12,7 +13,8 @@ class ExpenseRepository(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
     private val accountDao: AccountDao,
-    private val budgetDao: BudgetDao
+    private val budgetDao: BudgetDao,
+    private val investmentDao: InvestmentDao
 ) {
     // Transactions
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
@@ -54,10 +56,21 @@ class ExpenseRepository(
     // Accounts
     val allAccounts: Flow<List<AccountEntity>> = accountDao.getAllAccounts()
     val totalBalance: Flow<Double?> = accountDao.getTotalBalance()
+    val reserveBalance: Flow<Double?> = accountDao.getReserveBalance()
+    val availableBalance: Flow<Double?> = accountDao.getAvailableBalance()
 
     suspend fun insertAccount(account: AccountEntity) = accountDao.insertAccount(account)
     suspend fun updateAccount(account: AccountEntity) = accountDao.updateAccount(account)
     suspend fun deleteAccount(account: AccountEntity) = accountDao.deleteAccount(account)
+
+    // Investments
+    val allInvestments: Flow<List<InvestmentEntity>> = investmentDao.getAllInvestments()
+    val totalInvested: Flow<Double?> = investmentDao.getTotalInvested()
+    val totalCurrentValue: Flow<Double?> = investmentDao.getTotalCurrentValue()
+
+    suspend fun insertInvestment(investment: InvestmentEntity) = investmentDao.insertInvestment(investment)
+    suspend fun updateInvestment(investment: InvestmentEntity) = investmentDao.updateInvestment(investment)
+    suspend fun deleteInvestment(investment: InvestmentEntity) = investmentDao.deleteInvestment(investment)
 
     // Categories
     val allCategories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories()

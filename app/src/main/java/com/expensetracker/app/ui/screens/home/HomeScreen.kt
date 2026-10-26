@@ -31,9 +31,12 @@ import com.expensetracker.app.utils.DateUtils
 fun HomeScreen(
     viewModel: ExpenseViewModel,
     onNavigateToAdd: () -> Unit,
-    onNavigateToAi: () -> Unit = {}
+    onNavigateToAi: () -> Unit = {},
+    onNavigateToInvestments: () -> Unit = {}
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState()
+    val reserveBalance by viewModel.reserveBalance.collectAsState()
+    val availableBalance by viewModel.availableBalance.collectAsState()
     val monthExpense by viewModel.currentMonthExpense.collectAsState()
     val monthIncome by viewModel.currentMonthIncome.collectAsState()
     val monthlyBudget by viewModel.totalMonthlyBudget.collectAsState()
@@ -64,43 +67,80 @@ fun HomeScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                // Header Total Balance Card
+                // Header Total Balance Card with Reserve & Available Balance
                 TotalBalanceCard(
                     totalBalance = totalBalance,
+                    reserveBalance = reserveBalance,
+                    availableBalance = availableBalance,
                     monthExpense = monthExpense,
                     monthIncome = monthIncome
                 )
             }
 
-            // AI Assistant Quick Action Banner
+            // Quick Actions: AI & Investments
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToAi() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // AI Assistant Card
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToAi() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(PrimaryGreen),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryGreen),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Trợ lý AI", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF166534))
+                                Text("Chat & Quét bill", fontSize = 10.sp, color = Color(0xFF15803D))
+                            }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Trợ lý Chi Tiêu Gemini AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
-                            Text("Nhắn chi tiêu tự nhiên hoặc gửi ảnh bill Shopee/hóa đơn để lưu tự động!", fontSize = 11.sp, color = Color(0xFF15803D))
+                    }
+
+                    // Investments Card
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToInvestments() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2563EB)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E40AF))
+                                Text("Vàng, Cổ phiếu...", fontSize = 10.sp, color = Color(0xFF2563EB))
+                            }
                         }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = PrimaryGreen)
                     }
                 }
             }
@@ -181,6 +221,8 @@ fun HomeScreen(
 @Composable
 fun TotalBalanceCard(
     totalBalance: Double,
+    reserveBalance: Double,
+    availableBalance: Double,
     monthExpense: Double,
     monthIncome: Double
 ) {
@@ -213,7 +255,49 @@ fun TotalBalanceCard(
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Breakdown: Dự trữ vs Khả dụng
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Available Balance
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color.White.copy(alpha = 0.18f)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                            Text("💳 Khả dụng chi tiêu", color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp)
+                            Text(
+                                CurrencyUtils.formatVnd(availableBalance),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    // Reserve Balance
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color.White.copy(alpha = 0.18f)
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                            Text("🛡️ Quỹ tiền dự trữ", color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp)
+                            Text(
+                                CurrencyUtils.formatVnd(reserveBalance),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Income & Expense Summary
                 Row(

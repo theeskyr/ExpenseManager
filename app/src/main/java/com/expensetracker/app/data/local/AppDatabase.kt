@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.expensetracker.app.data.local.dao.AccountDao
 import com.expensetracker.app.data.local.dao.BudgetDao
 import com.expensetracker.app.data.local.dao.CategoryDao
+import com.expensetracker.app.data.local.dao.InvestmentDao
 import com.expensetracker.app.data.local.dao.TransactionDao
 import com.expensetracker.app.data.local.entity.*
 import kotlinx.coroutines.CoroutineScope
@@ -19,9 +20,10 @@ import kotlinx.coroutines.launch
         TransactionEntity::class,
         CategoryEntity::class,
         AccountEntity::class,
-        BudgetEntity::class
+        BudgetEntity::class,
+        InvestmentEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun accountDao(): AccountDao
     abstract fun budgetDao(): BudgetDao
+    abstract fun investmentDao(): InvestmentDao
 
     companion object {
         @Volatile
@@ -42,6 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_tracker_database"
                 )
+                .fallbackToDestructiveMigration()
                 .addCallback(DatabaseCallback(scope))
                 .build()
                 INSTANCE = instance
