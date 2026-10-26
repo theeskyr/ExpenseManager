@@ -29,7 +29,15 @@ class GeminiManager(context: Context) {
 
     companion object {
         private const val KEY_API_KEY = "gemini_api_key"
-        private const val MODEL_NAME = "gemini-1.5-flash"
+        private const val KEY_MODEL = "gemini_model_name"
+        const val DEFAULT_MODEL = "gemini-1.5-flash"
+
+        val AVAILABLE_MODELS = listOf(
+            "gemini-1.5-flash" to "Gemini 1.5 Flash (Nhanh, nhẹ, quét bill chuẩn - Khuyên dùng)",
+            "gemini-1.5-pro" to "Gemini 1.5 Pro (Tư duy sâu, hóa đơn dài & phức tạp)",
+            "gemini-2.0-flash" to "Gemini 2.0 Flash (Thế hệ mới nhất, tốc độ cực nhanh)",
+            "gemini-2.0-flash-lite" to "Gemini 2.0 Flash Lite (Siêu nhẹ, tiết kiệm tài nguyên)"
+        )
     }
 
     fun getApiKey(): String {
@@ -40,12 +48,21 @@ class GeminiManager(context: Context) {
         prefs.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
     }
 
+    fun getSelectedModel(): String {
+        return prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+    }
+
+    fun setSelectedModel(model: String) {
+        prefs.edit().putString(KEY_MODEL, model.trim()).apply()
+    }
+
     fun hasApiKey(): Boolean = getApiKey().isNotBlank()
 
     private fun getModel(): GenerativeModel {
         val apiKey = getApiKey()
+        val modelName = getSelectedModel()
         return GenerativeModel(
-            modelName = MODEL_NAME,
+            modelName = modelName,
             apiKey = apiKey,
             generationConfig = generationConfig {
                 responseMimeType = "application/json"

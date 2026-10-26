@@ -208,10 +208,16 @@ class ExpenseViewModel(
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
     val geminiApiKey = MutableStateFlow(geminiManager.getApiKey())
+    val selectedAiModel = MutableStateFlow(geminiManager.getSelectedModel())
 
     fun saveGeminiApiKey(key: String) {
         geminiManager.setApiKey(key)
         geminiApiKey.value = key
+    }
+
+    fun updateAiModel(model: String) {
+        geminiManager.setSelectedModel(model)
+        selectedAiModel.value = model
     }
 
     fun sendAiTextMessage(text: String) {

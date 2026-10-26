@@ -54,11 +54,14 @@ fun AiAssistantScreen(
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isLoading by viewModel.isAiLoading.collectAsState()
     val apiKey by viewModel.geminiApiKey.collectAsState()
+    val selectedModel by viewModel.selectedAiModel.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showModelDialog by remember { mutableStateOf(false) }
     var apiKeyInput by remember { mutableStateOf("") }
+    var customModelInput by remember { mutableStateOf("") }
 
     val listState = rememberLazyListState()
 
@@ -109,7 +112,7 @@ fun AiAssistantScreen(
                         Column {
                             Text("Trợ lý Chi Tiêu AI", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                text = if (apiKey.isNotBlank()) "Gemini 1.5 Flash (Sẵn sàng)" else "Chưa cài API Key",
+                                text = if (apiKey.isNotBlank()) selectedModel else "Chưa cài API Key",
                                 fontSize = 11.sp,
                                 color = if (apiKey.isNotBlank()) PrimaryGreen else ExpenseRed
                             )
@@ -117,6 +120,14 @@ fun AiAssistantScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            customModelInput = selectedModel
+                            showModelDialog = true
+                        }
+                    ) {
+                        Icon(Icons.Default.Tune, contentDescription = "Chọn Model AI", tint = PrimaryGreen)
+                    }
                     IconButton(
                         onClick = {
                             apiKeyInput = apiKey
@@ -380,6 +391,100 @@ fun AiAssistantScreen(
             dismissButton = {
                 TextButton(onClick = { showApiKeyDialog = false }) {
                     Text("Hủy")
+                }
+            }
+        )
+    }
+
+    // AI Model Selection Dialog
+    if (showModelDialog) {
+        AlertDialog(
+            onDismissRequest = { showModelDialog = false },
+            title = { Text("Chọn Mô Hình AI (Model)") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Chọn phiên bản AI phù hợp với nhu cầu của bạn:",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    com.expensetracker.app.data.ai.GeminiManager.AVAILABLE_MODELS.forEach { (modelId, modelName) ->
+                        val isSelected = selectedModel == modelId
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) PrimaryGreen.copy(alpha = 0.12f) else Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) PrimaryGreen else Color(0xFFE2E8F0)
+                            ),
+                            onClick = {
+                                viewModel.updateAiModel(modelId)
+                                showModelDialog = false
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = {
+                                        viewModel.updateAiModel(modelId)
+                                        showModelDialog = false
+                                    },
+                                    colors = RadioButtonDefaults.colors(selectedColor = PrimaryGreen)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = modelId,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (isSelected) PrimaryGreenDark else Color(0xFF1E293B)
+                                    )
+                                    Text(
+                                        text = modelName,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Hoặc nhập Model ID tùy chỉnh khác:",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    OutlinedTextField(
+                        value = customModelInput,
+                        onValueChange = { customModelInput = it },
+                        placeholder = { Text("Ví dụ: gemini-2.0-flash") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (customModelInput.isNotBlank()) {
+                            viewModel.updateAiModel(customModelInput.trim())
+                        }
+                        showModelDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("Áp dụng")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showModelDialog = false }) {
+                    Text("Đóng")
                 }
             }
         )
