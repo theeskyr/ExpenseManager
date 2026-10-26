@@ -131,8 +131,8 @@ fun MainAppNavHost(
 
     Scaffold(
         bottomBar = {
-            // Hide bottom bar when in AddTransaction screen or Investments
-            if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route) {
+            // Hide bottom bar when in AddTransaction screen or Investments or Accounts
+            if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route && currentRoute != Screen.Accounts.route) {
                 NavigationBar(
                     containerColor = Color.White,
                     tonalElevation = NavigationBarDefaults.Elevation
@@ -183,6 +183,9 @@ fun MainAppNavHost(
                     },
                     onNavigateToInvestments = {
                         navController.navigate(Screen.Investments.route)
+                    },
+                    onNavigateToAccounts = {
+                        navController.navigate(Screen.Accounts.route)
                     }
                 )
             }
@@ -218,10 +221,20 @@ fun MainAppNavHost(
                 )
             }
             composable(Screen.Accounts.route) {
-                AccountsScreen(viewModel = viewModel)
+                AccountsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen(viewModel = viewModel)
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateToAccounts = {
+                        navController.navigate(Screen.Accounts.route)
+                    }
+                )
             }
             composable(Screen.AddTransaction.route) {
                 AddTransactionScreen(

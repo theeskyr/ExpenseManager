@@ -54,7 +54,14 @@ object BankNotificationParser {
         "AGRIBANK", "VIB", "SACOMBANK", "SHB", "OCB", "HDBANK"
     )
 
-    // Regex 1: Amount followed by currency symbol (-50,000 VND, 100.000 đ, 25.000d)
+    // Regex 0: Explicit signed amount (+50,000 VND, -150.000 đ, + 500,000, - 25.000)
+    // Priority #1 because this directly captures the transaction delta (ignoring unsigned final balance)
+    private val SIGNED_AMOUNT_PATTERN = Pattern.compile(
+        """([+-]\s*[\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:VND|VNĐ|đ|dong|d\b)?""",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Regex 1: Amount followed by currency symbol (50,000 VND, 100.000 đ, 25.000d)
     private val AMOUNT_PATTERN_1 = Pattern.compile(
         """([+-]?\s*[\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:VND|VNĐ|đ|dong|d\b)""",
         Pattern.CASE_INSENSITIVE
@@ -68,8 +75,38 @@ object BankNotificationParser {
 
     // Regex 3: Keywords like "So tien:", "Bien dong:", "GD:" followed by amount
     private val AMOUNT_PATTERN_3 = Pattern.compile(
-        """(?:Số tiền|So tien|Số dư|So du|Biến động|Bien dong|GD|GD:|thanh toán|thanh toan)[\s:-]*([+-]?\s*[\d]{1,3}(?:[.,]\d{3})+)""",
+        """(?:Số tiền|So tien|Biến động|Bien dong|GD|GD:|thanh toán|thanh toan)[\s:-]*([+-]?\s*[\d]{1,3}(?:[.,]\d{3})+)""",
         Pattern.CASE_INSENSITIVE
+    )
+
+    private val INCOME_KEYWORDS = listOf(
+        "nhan tien", "nhận tiền",
+        "nhan duoc", "nhận được",
+        "cong tien", "cộng tiền",
+        "chuyen den", "chuyển đến",
+        "chuyen vao", "chuyển vào",
+        "tien vao", "tiền vào",
+        "tang", "tăng",
+        "nap tien", "nạp tiền",
+        "hoan tien", "hoàn tiền",
+        "tra luong", "trả lương",
+        "thanh toan luong",
+        "lai tien gui", "lãi tiền gửi",
+        "tien lai", "tiền lãi",
+        "thu nhap", "thu nhập"
+    )
+
+    private val EXPENSE_KEYWORDS = listOf(
+        "tru tien", "trừ tiền",
+        "thanh toan", "thanh toán",
+        "chi tieu", "chi tiêu",
+        "tien ra", "tiền ra",
+        "rut tien", "rút tiền",
+        "chuyen di", "chuyển đi",
+        "chuyen cho", "chuyển cho",
+        "giam", "giảm",
+        "phi dich vu", "phí dịch vụ",
+        "mua hang", "mua hàng"
     )
 
     fun isBankAppOrSms(packageName: String, title: String, content: String): Boolean {
@@ -108,17 +145,24 @@ object BankNotificationParser {
 
         var rawAmountStr: String? = null
 
-        val m1 = AMOUNT_PATTERN_1.matcher(fullText)
-        if (m1.find()) {
-            rawAmountStr = m1.group(1)
+        // 1. First priority: Match explicitly signed amounts (+50,000 or -50,000)
+        // This avoids mistakenly capturing unsigned balance amounts like "So du: 1,500,000 VND"
+        val mSigned = SIGNED_AMOUNT_PATTERN.matcher(fullText)
+        if (mSigned.find()) {
+            rawAmountStr = mSigned.group(1)
         } else {
-            val m2 = AMOUNT_PATTERN_2.matcher(fullText)
-            if (m2.find()) {
-                rawAmountStr = m2.group(1)
+            val m1 = AMOUNT_PATTERN_1.matcher(fullText)
+            if (m1.find()) {
+                rawAmountStr = m1.group(1)
             } else {
-                val m3 = AMOUNT_PATTERN_3.matcher(fullText)
-                if (m3.find()) {
-                    rawAmountStr = m3.group(1)
+                val m2 = AMOUNT_PATTERN_2.matcher(fullText)
+                if (m2.find()) {
+                    rawAmountStr = m2.group(1)
+                } else {
+                    val m3 = AMOUNT_PATTERN_3.matcher(fullText)
+                    if (m3.find()) {
+                        rawAmountStr = m3.group(1)
+                    }
                 }
             }
         }
@@ -129,32 +173,14 @@ object BankNotificationParser {
 
         val cleanRaw = rawAmountStr.replace("\\s+".toRegex(), "")
 
-        // Determine Expense vs Income
-        val isExplicitExpense = cleanRaw.startsWith("-") ||
-                fullText.contains("thanh toan", ignoreCase = true) ||
-                fullText.contains("thanh toán", ignoreCase = true) ||
-                fullText.contains("chi tieu", ignoreCase = true) ||
-                fullText.contains("chi tiêu", ignoreCase = true) ||
-                fullText.contains("tru tien", ignoreCase = true) ||
-                fullText.contains("trừ tiền", ignoreCase = true) ||
-                fullText.contains("rut tien", ignoreCase = true) ||
-                fullText.contains("rút tiền", ignoreCase = true) ||
-                fullText.contains("chuyen tien", ignoreCase = true) ||
-                fullText.contains("chuyển tiền", ignoreCase = true) ||
-                fullText.contains("GD thanh cong", ignoreCase = true)
-
-        val isExplicitIncome = cleanRaw.startsWith("+") ||
-                fullText.contains("nhan duoc", ignoreCase = true) ||
-                fullText.contains("nhận được", ignoreCase = true) ||
-                fullText.contains("cong tien", ignoreCase = true) ||
-                fullText.contains("cộng tiền", ignoreCase = true) ||
-                fullText.contains("chuyen den", ignoreCase = true) ||
-                fullText.contains("chuyển đến", ignoreCase = true)
-
-        val type = if (isExplicitIncome && !isExplicitExpense) {
-            TransactionType.INCOME
-        } else {
-            TransactionType.EXPENSE
+        // 2. Determine Expense vs Income with 100% authoritative priority for '+' and '-'
+        val type = when {
+            cleanRaw.startsWith("+") -> TransactionType.INCOME
+            cleanRaw.startsWith("-") -> TransactionType.EXPENSE
+            // If amount itself lacks +/- sign, analyze Vietnamese financial keywords
+            INCOME_KEYWORDS.any { fullText.contains(it, ignoreCase = true) } -> TransactionType.INCOME
+            EXPENSE_KEYWORDS.any { fullText.contains(it, ignoreCase = true) } -> TransactionType.EXPENSE
+            else -> TransactionType.EXPENSE
         }
 
         // Clean amount string to positive Double

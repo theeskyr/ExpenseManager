@@ -27,26 +27,46 @@ import com.expensetracker.app.ui.theme.parseColor
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CurrencyUtils
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(
-    viewModel: ExpenseViewModel
+    viewModel: ExpenseViewModel,
+    onNavigateBack: () -> Unit = {}
 ) {
     val accounts by viewModel.allAccounts.collectAsState()
     val totalBalance by viewModel.totalBalance.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var accountName by remember { mutableStateOf("") }
     var initialBalanceText by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(AccountType.BANK) }
     var isReserveInput by remember { mutableStateOf(false) }
 
+    // State for edit dialog
+    var editBalanceText by remember { mutableStateOf("") }
+    var editAccountName by remember { mutableStateOf("") }
+    var editIsReserve by remember { mutableStateOf(false) }
+
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Nguồn Tiền & Ví", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
                     accountName = ""
                     initialBalanceText = ""
                     selectedType = AccountType.BANK
+                    isReserveInput = false
                     showAddDialog = true
                 },
                 containerColor = PrimaryGreen,
@@ -64,15 +84,9 @@ fun AccountsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Ví & Tài khoản",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Quản lý các nguồn tiền của bạn",
+                    text = "Quản lý toàn bộ nguồn tiền của bạn (tiền mặt, ngân hàng, ví điện tử, quỹ dự phòng). Chạm vào bất kỳ ví nào để cập nhật số dư thực tế.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF64748B)
                 )
@@ -103,7 +117,14 @@ fun AccountsScreen(
                 val accColor = parseColor(account.colorHex)
 
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            editingAccount = account
+                            editAccountName = account.name
+                            editBalanceText = if (account.currentBalance > 0) account.currentBalance.toLong().toString() else "0"
+                            editIsReserve = account.isReserve || account.type == AccountType.RESERVE
+                        },
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(0.5.dp)
@@ -161,7 +182,7 @@ fun AccountsScreen(
                                 AccountType.RESERVE -> "Quỹ dự phòng khẩn cấp"
                             }
                             Text(
-                                text = typeLabel,
+                                text = "$typeLabel • Chạm để sửa số dư",
                                 fontSize = 12.sp,
                                 color = Color(0xFF64748B)
                             )
@@ -173,19 +194,12 @@ fun AccountsScreen(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
-                            if (accounts.size > 1) {
-                                IconButton(
-                                    onClick = { viewModel.deleteAccount(account) },
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "Xóa ví",
-                                        tint = Color(0xFFCBD5E1),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Sửa số dư",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(16.dp).padding(top = 4.dp)
+                            )
                         }
                     }
                 }
@@ -197,17 +211,127 @@ fun AccountsScreen(
         }
     }
 
+    // Dialog Edit / Adjust Balance
+    editingAccount?.let { acc ->
+        AlertDialog(
+            onDismissRequest = { editingAccount = null },
+            title = { Text("Cập nhật số dư: ${acc.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Nhập số dư thực tế hiện tại bạn đang có trong nguồn tiền này:",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    OutlinedTextField(
+                        value = editBalanceText,
+                        onValueChange = { input -> if (input.all { it.isDigit() }) editBalanceText = input },
+                        label = { Text("Số dư thực tế (₫)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editAccountName,
+                        onValueChange = { editAccountName = it },
+                        label = { Text("Tên nguồn tiền") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = editIsReserve,
+                            onCheckedChange = { editIsReserve = it },
+                            colors = CheckboxDefaults.colors(checkedColor = PrimaryGreen)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "🛡️ Đặt làm Nguồn tiền dự trữ (không tính vào tiền chi tiêu)",
+                            fontSize = 12.sp,
+                            color = Color(0xFF334155)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newBal = editBalanceText.toDoubleOrNull() ?: 0.0
+                        viewModel.updateAccount(
+                            acc.copy(
+                                name = if (editAccountName.isNotBlank()) editAccountName else acc.name,
+                                currentBalance = newBal,
+                                isReserve = editIsReserve
+                            )
+                        )
+                        editingAccount = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("Lưu số dư")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (accounts.size > 1) {
+                        TextButton(
+                            onClick = {
+                                viewModel.deleteAccount(acc)
+                                editingAccount = null
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
+                        ) {
+                            Text("Xóa ví")
+                        }
+                    }
+                    TextButton(onClick = { editingAccount = null }) {
+                        Text("Hủy")
+                    }
+                }
+            }
+        )
+    }
+
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("Thêm ví / tài khoản mới") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Gợi ý nhanh:", fontSize = 11.sp, color = Color(0xFF64748B))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(
+                            Triple("Tiền mặt", AccountType.CASH, false),
+                            Triple("Vietcombank", AccountType.BANK, false),
+                            Triple("MB Bank", AccountType.BANK, false),
+                            Triple("MoMo", AccountType.E_WALLET, false),
+                            Triple("Quỹ dự phòng", AccountType.RESERVE, true)
+                        ).forEach { (presetName, presetType, presetReserve) ->
+                            SuggestionChip(
+                                onClick = {
+                                    accountName = presetName
+                                    selectedType = presetType
+                                    isReserveInput = presetReserve
+                                },
+                                label = { Text(presetName, fontSize = 10.sp) }
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = accountName,
                         onValueChange = { accountName = it },
                         label = { Text("Tên ví / Ngân hàng") },
-                        placeholder = { Text("Ví dụ: VPBank, MoMo...") },
+                        placeholder = { Text("Ví dụ: VPBank, MoMo, Tiền mặt...") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )

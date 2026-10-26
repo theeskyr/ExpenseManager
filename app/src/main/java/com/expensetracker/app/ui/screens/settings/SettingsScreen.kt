@@ -30,7 +30,8 @@ import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 
 @Composable
 fun SettingsScreen(
-    viewModel: ExpenseViewModel
+    viewModel: ExpenseViewModel,
+    onNavigateToAccounts: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showResetDialog by remember { mutableStateOf(false) }
@@ -48,6 +49,40 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        // Manage Accounts & Wallets Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToAccounts() },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(1.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Quản lý nguồn tiền & ví",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Xem, thêm và điều chỉnh số dư tiền mặt, tài khoản ngân hàng, ví điện tử, quỹ dự phòng.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8))
+                }
+            }
         }
 
         // Export Data Card
@@ -193,27 +228,51 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                BankNotificationListenerService.showExpensePromptNotification(
-                                    context = context,
-                                    bankName = "Vietcombank",
-                                    amount = 55000.0,
-                                    type = TransactionType.EXPENSE,
-                                    note = "Thanh toán Phở bò (Test thông báo)"
-                                )
-                                Toast.makeText(context, "Đã gửi thông báo thử nghiệm! Hãy kiểm tra thanh thông báo.", Toast.LENGTH_LONG).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("🧪 Bắn thông báo thử nghiệm ngay", fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    BankNotificationListenerService.showExpensePromptNotification(
+                                        context = context,
+                                        bankName = "Vietcombank",
+                                        amount = 55000.0,
+                                        type = TransactionType.EXPENSE,
+                                        note = "Thanh toán Phở bò (Test Chi)"
+                                    )
+                                    Toast.makeText(context, "Đã gửi thông báo test Chi (-55k)!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("🧪 Test Chi (-)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    BankNotificationListenerService.showExpensePromptNotification(
+                                        context = context,
+                                        bankName = "MB Bank",
+                                        amount = 500000.0,
+                                        type = TransactionType.INCOME,
+                                        note = "Nhận lương / Chuyển khoản (Test Thu)"
+                                    )
+                                    Toast.makeText(context, "Đã gửi thông báo test Thu (+500k)!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("🧪 Test Thu (+)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
                     }
                 }
             }

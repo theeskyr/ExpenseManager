@@ -179,6 +179,21 @@ class ExpenseViewModel(
         }
     }
 
+    fun updateAccount(account: AccountEntity) {
+        viewModelScope.launch {
+            repository.updateAccount(account)
+        }
+    }
+
+    fun updateAccountBalance(accountId: Long, newBalance: Double) {
+        viewModelScope.launch {
+            val acc = allAccounts.value.firstOrNull { it.id == accountId }
+            acc?.let {
+                repository.updateAccount(it.copy(currentBalance = newBalance))
+            }
+        }
+    }
+
     // Investment Operations
     fun addInvestment(
         name: String,

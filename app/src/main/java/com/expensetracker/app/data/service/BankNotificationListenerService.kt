@@ -84,18 +84,20 @@ class BankNotificationListenerService : NotificationListenerService() {
             )
 
             val formattedAmount = CurrencyUtils.formatVnd(amount)
-            val typeTitle = if (type == TransactionType.EXPENSE) "Khoản chi" else "Khoản thu"
+            val isIncome = type == TransactionType.INCOME
+            val typeTitle = if (isIncome) "Khoản thu (+)" else "Khoản chi (-)"
+            val signPrefix = if (isIncome) "+" else "-"
 
             // Đảm bảo Channel được tạo
             createNotificationChannel(context)
 
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("🔔 Phát hiện $typeTitle mới: $formattedAmount")
+                .setContentTitle("🔔 Phát hiện $typeTitle: $signPrefix$formattedAmount")
                 .setContentText("Từ $bankName. Chạm để chọn danh mục & lưu nhanh!")
                 .setStyle(
                     NotificationCompat.BigTextStyle().bigText(
-                        "Từ $bankName: $formattedAmount.\nNội dung: $note\nChạm vào đây để phân loại danh mục (Ăn uống, Mua sắm...) và lưu trong 1 giây."
+                        "Từ $bankName: $signPrefix$formattedAmount ($typeTitle).\nNội dung: $note\nChạm vào đây để phân loại danh mục và lưu trong 1 giây."
                     )
                 )
                 .setPriority(NotificationCompat.PRIORITY_MAX)

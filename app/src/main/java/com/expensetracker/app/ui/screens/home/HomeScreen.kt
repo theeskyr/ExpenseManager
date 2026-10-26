@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,8 +20,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.expensetracker.app.data.local.entity.AccountEntity
+import com.expensetracker.app.data.local.entity.AccountType
+import com.expensetracker.app.ui.components.CategoryIcon
 import com.expensetracker.app.ui.components.TransactionItem
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
@@ -32,7 +37,8 @@ fun HomeScreen(
     viewModel: ExpenseViewModel,
     onNavigateToAdd: () -> Unit,
     onNavigateToAi: () -> Unit = {},
-    onNavigateToInvestments: () -> Unit = {}
+    onNavigateToInvestments: () -> Unit = {},
+    onNavigateToAccounts: () -> Unit = {}
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState()
     val reserveBalance by viewModel.reserveBalance.collectAsState()
@@ -73,7 +79,8 @@ fun HomeScreen(
                     reserveBalance = reserveBalance,
                     availableBalance = availableBalance,
                     monthExpense = monthExpense,
-                    monthIncome = monthIncome
+                    monthIncome = monthIncome,
+                    onManageAccounts = onNavigateToAccounts
                 )
             }
 
@@ -139,6 +146,62 @@ fun HomeScreen(
                             Column {
                                 Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E40AF))
                                 Text("Vàng, Cổ phiếu...", fontSize = 10.sp, color = Color(0xFF2563EB))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // My Wallets & Accounts Section (Tiền mặt, Ngân hàng, Ví điện tử...)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Nguồn tiền & Ví (${accounts.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    TextButton(onClick = onNavigateToAccounts) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryGreen)
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("Thêm ví", fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 13.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(accounts, key = { it.id }) { acc ->
+                        AccountQuickCard(
+                            account = acc,
+                            onClick = onNavigateToAccounts
+                        )
+                    }
+
+                    // Add new wallet card
+                    item {
+                        Surface(
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(82.dp)
+                                .clickable { onNavigateToAccounts() },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Thêm nguồn tiền", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -224,7 +287,8 @@ fun TotalBalanceCard(
     reserveBalance: Double,
     availableBalance: Double,
     monthExpense: Double,
-    monthIncome: Double
+    monthIncome: Double,
+    onManageAccounts: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -242,11 +306,31 @@ fun TotalBalanceCard(
                 .padding(20.dp)
         ) {
             Column {
-                Text(
-                    text = "Tổng số dư tài sản",
-                    color = Color.White.copy(alpha = 0.85f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Tổng số dư tài sản",
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Surface(
+                        modifier = Modifier.clickable { onManageAccounts() },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Quản lý ví ›", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = CurrencyUtils.formatVnd(totalBalance),
@@ -448,6 +532,69 @@ fun BudgetSummaryCard(
                     text = "Hạn mức: ${CurrencyUtils.formatVnd(limit)}",
                     fontSize = 12.sp,
                     color = Color(0xFF64748B)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AccountQuickCard(
+    account: AccountEntity,
+    onClick: () -> Unit
+) {
+    val accColor = parseColor(account.colorHex)
+    Surface(
+        modifier = Modifier
+            .width(135.dp)
+            .height(82.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        color = Color.White,
+        shadowElevation = 1.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(accColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CategoryIcon(
+                        name = account.iconName,
+                        tint = accColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                if (account.isReserve || account.type == AccountType.RESERVE) {
+                    Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFE0F2FE)) {
+                        Text("🛡️ Dự trữ", fontSize = 8.sp, color = Color(0xFF0369A1), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp))
+                    }
+                }
+            }
+            Column {
+                Text(
+                    text = account.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = CurrencyUtils.formatVnd(account.currentBalance),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryGreen
                 )
             }
         }
