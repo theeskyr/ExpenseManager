@@ -1,0 +1,481 @@
+package com.expensetracker.app.ui.screens.ai
+
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.expensetracker.app.data.local.entity.TransactionType
+import com.expensetracker.app.ui.theme.ExpenseRed
+import com.expensetracker.app.ui.theme.IncomeGreen
+import com.expensetracker.app.ui.theme.PrimaryGreen
+import com.expensetracker.app.ui.theme.PrimaryGreenDark
+import com.expensetracker.app.ui.viewmodel.ChatMessage
+import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
+import com.expensetracker.app.ui.viewmodel.MessageSender
+import com.expensetracker.app.utils.CurrencyUtils
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AiAssistantScreen(
+    viewModel: ExpenseViewModel
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val chatMessages by viewModel.chatMessages.collectAsState()
+    val isLoading by viewModel.isAiLoading.collectAsState()
+    val apiKey by viewModel.geminiApiKey.collectAsState()
+
+    var inputText by remember { mutableStateOf("") }
+    var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf("") }
+
+    val listState = rememberLazyListState()
+
+    // Scroll to bottom when new messages arrive
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty()) {
+            listState.animateScrollToItem(chatMessages.size - 1)
+        }
+    }
+
+    // Photo Picker Launcher
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, it)
+                    ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                }
+                selectedBitmap = bitmap
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryGreen.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text("Trợ lý Chi Tiêu AI", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (apiKey.isNotBlank()) "Gemini 1.5 Flash (Sẵn sàng)" else "Chưa cài API Key",
+                                fontSize = 11.sp,
+                                color = if (apiKey.isNotBlank()) PrimaryGreen else ExpenseRed
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            apiKeyInput = apiKey
+                            showApiKeyDialog = true
+                        }
+                    ) {
+                        Icon(Icons.Default.Key, contentDescription = "Cài đặt API Key", tint = PrimaryGreen)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // API Key prompt banner if not configured
+            if (apiKey.isBlank()) {
+                Surface(
+                    color = Color(0xFFFEF2F2),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Chưa nhập Gemini API Key", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ExpenseRed)
+                            Text("Nhập API Key để mở khóa tính năng tự động đọc tin nhắn & quét bill hóa đơn.", fontSize = 11.sp, color = Color(0xFF7F1D1D))
+                        }
+                        Button(
+                            onClick = {
+                                apiKeyInput = ""
+                                showApiKeyDialog = true
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                        ) {
+                            Text("Nhập Key", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Message List
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                items(chatMessages, key = { it.id }) { msg ->
+                    ChatBubble(message = msg)
+                }
+
+                if (isLoading) {
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = PrimaryGreen
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                "Gemini đang phân tích chi tiêu...",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Image Preview thumbnail (before sending)
+            selectedBitmap?.let { bmp ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF1F5F9),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Hóa đơn đính kèm",
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Ảnh hóa đơn / bill Shopee sẵn sàng gửi",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { selectedBitmap = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Bỏ ảnh", tint = Color(0xFF64748B), modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+
+            // Chat Input Bar
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shadowElevation = 4.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Attachment button for Receipt / Screenshot
+                    IconButton(
+                        onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddPhotoAlternate,
+                            contentDescription = "Đính kèm hóa đơn",
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    // Text Field
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        placeholder = {
+                            Text(
+                                "Nhắn chi tiêu (VD: vừa ăn phở 55k)...",
+                                fontSize = 13.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(24.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = Color(0xFFF8FAFC),
+                            focusedContainerColor = Color.White,
+                            unfocusedBorderColor = Color(0xFFE2E8F0)
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                if (selectedBitmap != null) {
+                                    viewModel.sendAiImageMessage(selectedBitmap!!, inputText)
+                                    selectedBitmap = null
+                                    inputText = ""
+                                } else if (inputText.isNotBlank()) {
+                                    viewModel.sendAiTextMessage(inputText)
+                                    inputText = ""
+                                }
+                            }
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Send Button
+                    val canSend = (inputText.isNotBlank() || selectedBitmap != null) && !isLoading
+                    IconButton(
+                        onClick = {
+                            if (selectedBitmap != null) {
+                                viewModel.sendAiImageMessage(selectedBitmap!!, inputText)
+                                selectedBitmap = null
+                                inputText = ""
+                            } else if (inputText.isNotBlank()) {
+                                viewModel.sendAiTextMessage(inputText)
+                                inputText = ""
+                            }
+                        },
+                        enabled = canSend
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(if (canSend) PrimaryGreen else Color(0xFFE2E8F0)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Send,
+                                contentDescription = "Gửi",
+                                tint = if (canSend) Color.White else Color(0xFF94A3B8),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Gemini API Key Config Dialog
+    if (showApiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showApiKeyDialog = false },
+            title = { Text("Cấu hình Gemini API Key") },
+            text = {
+                Column {
+                    Text(
+                        "Dán API Key của Google Gemini vào bên dưới. Key của bạn được lưu an toàn trên máy và chỉ dùng để trao đổi với mô hình Gemini.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        placeholder = { Text("AIzaSy...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Nếu chưa có key, bạn có thể lấy miễn phí tại aistudio.google.com",
+                        fontSize = 11.sp,
+                        color = PrimaryGreenDark
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.saveGeminiApiKey(apiKeyInput)
+                        showApiKeyDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("Lưu API Key")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatMessage) {
+    val isUser = message.sender == MessageSender.USER
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+    ) {
+        if (!isUser) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(PrimaryGreen.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
+        Column(
+            modifier = Modifier.widthIn(max = 280.dp),
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+        ) {
+            // Attached Image if user sent a receipt
+            message.bitmap?.let { bmp ->
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(160.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .padding(bottom = 6.dp)
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isUser) 16.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 16.dp
+                ),
+                color = if (isUser) PrimaryGreen else Color.White,
+                shadowElevation = 0.5.dp,
+                border = if (!isUser) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null
+            ) {
+                Text(
+                    text = message.text,
+                    modifier = Modifier.padding(12.dp),
+                    color = if (isUser) Color.White else Color(0xFF1E293B),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+            }
+
+            // Auto-added Transaction Card Preview
+            message.transactionData?.let { tx ->
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF0FDF4),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Đã tự động lưu vào chi tiêu",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF166534)
+                            )
+                            val isExp = tx.type == TransactionType.EXPENSE
+                            val prefix = if (isExp) "- " else "+ "
+                            Text(
+                                text = "$prefix${CurrencyUtils.formatVnd(tx.amount)} • ${tx.note}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isExp) ExpenseRed else IncomeGreen
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

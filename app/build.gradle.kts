@@ -69,5 +69,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // Google Gemini AI SDK
+    implementation(libs.google.generativeai)
+
     debugImplementation(libs.androidx.ui.tooling)
 }

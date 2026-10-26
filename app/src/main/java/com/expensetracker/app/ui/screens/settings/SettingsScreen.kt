@@ -167,6 +167,100 @@ fun SettingsScreen(
             }
         }
 
+        // Gemini AI API Key Setting Card
+        item {
+            val apiKey by viewModel.geminiApiKey.collectAsState()
+            var showKeyDialog by remember { mutableStateOf(false) }
+            var tempKey by remember { mutableStateOf("") }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Google Gemini AI API Key",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = if (apiKey.isNotBlank()) "Trạng thái: Đã kết nối (Key: ${apiKey.take(6)}...${apiKey.takeLast(4)})" else "Trạng thái: Chưa cấu hình API Key",
+                        fontSize = 13.sp,
+                        color = if (apiKey.isNotBlank()) Color(0xFF059669) else ExpenseRed,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            tempKey = apiKey
+                            showKeyDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(if (apiKey.isNotBlank()) "Đổi Gemini API Key" else "Nhập Gemini API Key", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            if (showKeyDialog) {
+                AlertDialog(
+                    onDismissRequest = { showKeyDialog = false },
+                    title = { Text("Cấu hình Gemini API Key") },
+                    text = {
+                        Column {
+                            Text(
+                                "Nhập Gemini API Key của bạn từ aistudio.google.com:",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = tempKey,
+                                onValueChange = { tempKey = it },
+                                placeholder = { Text("AIzaSy...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.saveGeminiApiKey(tempKey)
+                                showKeyDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                        ) {
+                            Text("Lưu")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showKeyDialog = false }) {
+                            Text("Hủy")
+                        }
+                    }
+                )
+            }
+        }
+
         // Privacy Guarantee Card
         item {
             Card(

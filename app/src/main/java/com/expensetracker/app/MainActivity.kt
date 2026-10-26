@@ -25,6 +25,7 @@ import com.expensetracker.app.data.local.entity.TransactionType
 import com.expensetracker.app.data.service.BankNotificationListenerService
 import com.expensetracker.app.ui.screens.accounts.AccountsScreen
 import com.expensetracker.app.ui.screens.add.AddTransactionScreen
+import com.expensetracker.app.ui.screens.ai.AiAssistantScreen
 import com.expensetracker.app.ui.screens.budget.BudgetScreen
 import com.expensetracker.app.ui.screens.home.HomeScreen
 import com.expensetracker.app.ui.screens.settings.SettingsScreen
@@ -37,6 +38,7 @@ import com.expensetracker.app.ui.viewmodel.ViewModelFactory
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Trang chủ", Icons.Default.Home)
     object Stats : Screen("stats", "Thống kê", Icons.Default.PieChart)
+    object AiAssistant : Screen("ai_assistant", "Trợ lý AI", Icons.Default.SmartToy)
     object Budget : Screen("budget", "Ngân sách", Icons.Default.Savings)
     object Accounts : Screen("accounts", "Ví tiền", Icons.Default.AccountBalanceWallet)
     object Settings : Screen("settings", "Cài đặt", Icons.Default.Settings)
@@ -46,7 +48,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 class MainActivity : ComponentActivity() {
 
     private val viewModel: ExpenseViewModel by viewModels {
-        ViewModelFactory((application as ExpenseTrackerApp).repository)
+        val app = application as ExpenseTrackerApp
+        ViewModelFactory(app.repository, app.geminiManager)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,8 +96,8 @@ fun MainAppNavHost(
     val bottomNavItems = listOf(
         Screen.Home,
         Screen.Stats,
+        Screen.AiAssistant,
         Screen.Budget,
-        Screen.Accounts,
         Screen.Settings
     )
 
@@ -146,11 +149,17 @@ fun MainAppNavHost(
                     viewModel = viewModel,
                     onNavigateToAdd = {
                         navController.navigate(Screen.AddTransaction.route)
+                    },
+                    onNavigateToAi = {
+                        navController.navigate(Screen.AiAssistant.route)
                     }
                 )
             }
             composable(Screen.Stats.route) {
                 StatisticsScreen(viewModel = viewModel)
+            }
+            composable(Screen.AiAssistant.route) {
+                AiAssistantScreen(viewModel = viewModel)
             }
             composable(Screen.Budget.route) {
                 BudgetScreen(viewModel = viewModel)

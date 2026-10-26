@@ -1,15 +1,14 @@
 package com.expensetracker.app.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -31,7 +30,8 @@ import com.expensetracker.app.utils.DateUtils
 @Composable
 fun HomeScreen(
     viewModel: ExpenseViewModel,
-    onNavigateToAdd: () -> Unit
+    onNavigateToAdd: () -> Unit,
+    onNavigateToAi: () -> Unit = {}
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState()
     val monthExpense by viewModel.currentMonthExpense.collectAsState()
@@ -70,6 +70,39 @@ fun HomeScreen(
                     monthExpense = monthExpense,
                     monthIncome = monthIncome
                 )
+            }
+
+            // AI Assistant Quick Action Banner
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToAi() },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(PrimaryGreen),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Trợ lý Chi Tiêu Gemini AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
+                            Text("Nhắn chi tiêu tự nhiên hoặc gửi ảnh bill Shopee/hóa đơn để lưu tự động!", fontSize = 11.sp, color = Color(0xFF15803D))
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = PrimaryGreen)
+                    }
+                }
             }
 
             // Budget Alert / Progress Card (if budget is set)

@@ -10,6 +10,7 @@ class ExpenseTrackerApp : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob())
 
     val database by lazy { AppDatabase.getDatabase(this, applicationScope) }
+    val geminiManager by lazy { com.expensetracker.app.data.ai.GeminiManager(this) }
     val repository by lazy {
         ExpenseRepository(
             transactionDao = database.transactionDao(),

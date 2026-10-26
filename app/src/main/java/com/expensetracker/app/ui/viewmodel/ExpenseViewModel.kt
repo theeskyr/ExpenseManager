@@ -1,8 +1,11 @@
 package com.expensetracker.app.ui.viewmodel
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.expensetracker.app.data.ai.AiTransactionData
+import com.expensetracker.app.data.ai.GeminiManager
 import com.expensetracker.app.data.local.dao.CategorySummary
 import com.expensetracker.app.data.local.entity.*
 import com.expensetracker.app.data.repository.ExpenseRepository
@@ -12,13 +15,28 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Calendar
+import java.util.UUID
 
 enum class TimePeriod {
     THIS_WEEK, THIS_MONTH, THIS_YEAR
 }
 
+enum class MessageSender {
+    USER, AI
+}
+
+data class ChatMessage(
+    val id: String = UUID.randomUUID().toString(),
+    val sender: MessageSender,
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val bitmap: Bitmap? = null,
+    val transactionData: AiTransactionData? = null
+)
+
 class ExpenseViewModel(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    val geminiManager: GeminiManager
 ) : ViewModel() {
 
     val allTransactions: StateFlow<List<TransactionEntity>> = repository.allTransactions
@@ -173,5 +191,98 @@ class ExpenseViewModel(
         viewModelScope.launch {
             repository.deleteAllData()
         }
+    }
+
+    // AI Chat & Receipt Analysis States
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(
+        listOf(
+            ChatMessage(
+                sender = MessageSender.AI,
+                text = "Xin chào! Em là Trợ lý Chi tiêu AI của bạn 🤖.\n\nBạn có thể:\n• Nhắn tự nhiên: \"Vừa ăn phở 55k bằng tiền mặt\" hoặc \"Mua áo 350k trên Shopee\"\n• Gửi ảnh hóa đơn, bill thanh toán Shopee / Lazada để em tự đọc và cộng vào chi tiêu!\n• Hỏi bất kỳ thắc mắc nào về quản lý tài chính."
+            )
+        )
+    )
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _isAiLoading = MutableStateFlow(false)
+    val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
+
+    val geminiApiKey = MutableStateFlow(geminiManager.getApiKey())
+
+    fun saveGeminiApiKey(key: String) {
+        geminiManager.setApiKey(key)
+        geminiApiKey.value = key
+    }
+
+    fun sendAiTextMessage(text: String) {
+        if (text.isBlank()) return
+        val userMsg = ChatMessage(sender = MessageSender.USER, text = text)
+        _chatMessages.value = _chatMessages.value + userMsg
+
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            val spendingContext = "Chi tháng này: ${currentMonthExpense.value} ₫, Thu tháng này: ${currentMonthIncome.value} ₫"
+            val response = geminiManager.processTextMessage(text, spendingContext)
+
+            // Auto add transaction if detected
+            response.detectedTransaction?.let { txData ->
+                autoSaveAiTransaction(txData)
+            }
+
+            val aiMsg = ChatMessage(
+                sender = MessageSender.AI,
+                text = response.replyText,
+                transactionData = response.detectedTransaction
+            )
+            _chatMessages.value = _chatMessages.value + aiMsg
+            _isAiLoading.value = false
+        }
+    }
+
+    fun sendAiImageMessage(bitmap: Bitmap, userPrompt: String = "") {
+        val userMsg = ChatMessage(
+            sender = MessageSender.USER,
+            text = if (userPrompt.isNotBlank()) userPrompt else "Đã gửi 1 ảnh hóa đơn/bill",
+            bitmap = bitmap
+        )
+        _chatMessages.value = _chatMessages.value + userMsg
+
+        viewModelScope.launch {
+            _isAiLoading.value = true
+            val response = geminiManager.processReceiptImage(bitmap, userPrompt)
+
+            // Auto add transaction if detected
+            response.detectedTransaction?.let { txData ->
+                autoSaveAiTransaction(txData)
+            }
+
+            val aiMsg = ChatMessage(
+                sender = MessageSender.AI,
+                text = response.replyText,
+                transactionData = response.detectedTransaction
+            )
+            _chatMessages.value = _chatMessages.value + aiMsg
+            _isAiLoading.value = false
+        }
+    }
+
+    private suspend fun autoSaveAiTransaction(txData: AiTransactionData) {
+        val currentAccounts = allAccounts.value
+        val matchedAccount = txData.suggestedAccountName?.let { accName ->
+            currentAccounts.firstOrNull { it.name.contains(accName, ignoreCase = true) }
+        } ?: currentAccounts.firstOrNull()
+
+        val accountId = matchedAccount?.id ?: 1L
+
+        repository.addTransaction(
+            TransactionEntity(
+                amount = txData.amount,
+                type = txData.type,
+                categoryId = txData.categoryId,
+                accountId = accountId,
+                note = txData.note,
+                timestamp = System.currentTimeMillis()
+            )
+        )
     }
 }
