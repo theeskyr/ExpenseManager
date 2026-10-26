@@ -164,6 +164,12 @@ class ExpenseViewModel(
         }
     }
 
+    fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.updateTransaction(oldTransaction, newTransaction)
+        }
+    }
+
     fun addAccount(name: String, type: AccountType, initialBalance: Double, colorHex: String, isReserve: Boolean = false) {
         viewModelScope.launch {
             repository.insertAccount(

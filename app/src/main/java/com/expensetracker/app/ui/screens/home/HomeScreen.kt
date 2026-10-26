@@ -6,25 +6,30 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.AccountType
+import com.expensetracker.app.data.local.entity.CategoryEntity
+import com.expensetracker.app.data.local.entity.TransactionEntity
+import com.expensetracker.app.data.local.entity.TransactionType
 import com.expensetracker.app.ui.components.CategoryIcon
 import com.expensetracker.app.ui.components.TransactionItem
 import com.expensetracker.app.ui.theme.*
@@ -52,6 +57,8 @@ fun HomeScreen(
 
     val categoryMap = categories.associateBy { it.id }
     val accountMap = accounts.associateBy { it.id }
+
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -269,7 +276,8 @@ fun HomeScreen(
                         transaction = tx,
                         category = categoryMap[tx.categoryId],
                         account = accountMap[tx.accountId],
-                        onDelete = { viewModel.deleteTransaction(tx) }
+                        onDelete = { viewModel.deleteTransaction(tx) },
+                        onClick = { editingTransaction = tx }
                     )
                 }
             }
@@ -278,6 +286,24 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(70.dp)) // padding for FAB
             }
         }
+    }
+
+    // Edit Transaction Dialog
+    editingTransaction?.let { tx ->
+        EditTransactionDialog(
+            transaction = tx,
+            categories = categories,
+            accounts = accounts,
+            onDismiss = { editingTransaction = null },
+            onSave = { updatedTx ->
+                viewModel.updateTransaction(tx, updatedTx)
+                editingTransaction = null
+            },
+            onDelete = {
+                viewModel.deleteTransaction(tx)
+                editingTransaction = null
+            }
+        )
     }
 }
 
@@ -599,4 +625,193 @@ fun AccountQuickCard(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTransactionDialog(
+    transaction: TransactionEntity,
+    categories: List<CategoryEntity>,
+    accounts: List<AccountEntity>,
+    onDismiss: () -> Unit,
+    onSave: (TransactionEntity) -> Unit,
+    onDelete: () -> Unit
+) {
+    var editType by remember { mutableStateOf(transaction.type) }
+    var editAmountText by remember { mutableStateOf(transaction.amount.toLong().toString()) }
+    var editCategoryId by remember { mutableStateOf(transaction.categoryId) }
+    var editAccountId by remember { mutableStateOf(transaction.accountId) }
+    var editNote by remember { mutableStateOf(transaction.note) }
+
+    val filteredCategories = categories.filter { it.type == editType }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Chỉnh sửa giao dịch", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Type Switcher: Chi tiêu vs Thu nhập
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF1F5F9))
+                        .padding(2.dp)
+                ) {
+                    // Chi tiêu
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (editType == TransactionType.EXPENSE) ExpenseRed else Color.Transparent)
+                            .clickable {
+                                editType = TransactionType.EXPENSE
+                                val firstExp = categories.firstOrNull { it.type == TransactionType.EXPENSE }
+                                if (firstExp != null && filteredCategories.none { it.id == editCategoryId }) {
+                                    editCategoryId = firstExp.id
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Chi tiêu (-)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (editType == TransactionType.EXPENSE) Color.White else Color(0xFF64748B)
+                        )
+                    }
+
+                    // Thu nhập
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (editType == TransactionType.INCOME) IncomeGreen else Color.Transparent)
+                            .clickable {
+                                editType = TransactionType.INCOME
+                                val firstInc = categories.firstOrNull { it.type == TransactionType.INCOME }
+                                if (firstInc != null && filteredCategories.none { it.id == editCategoryId }) {
+                                    editCategoryId = firstInc.id
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Thu nhập (+)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (editType == TransactionType.INCOME) Color.White else Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                // Amount Input
+                OutlinedTextField(
+                    value = editAmountText,
+                    onValueChange = { input -> if (input.all { it.isDigit() }) editAmountText = input },
+                    label = { Text("Số tiền (₫)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Category Picker
+                Text("Danh mục:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filteredCategories, key = { it.id }) { cat ->
+                        val isSelected = editCategoryId == cat.id
+                        val catColor = parseColor(cat.colorHex)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { editCategoryId = cat.id },
+                            leadingIcon = {
+                                CategoryIcon(
+                                    name = cat.iconName,
+                                    tint = if (isSelected) Color.White else catColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            label = { Text(cat.name, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = if (editType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                // Account / Wallet Picker
+                Text("Nguồn tiền / Ví:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(accounts, key = { it.id }) { acc ->
+                        val isSelected = editAccountId == acc.id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { editAccountId = acc.id },
+                            label = { Text(acc.name, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = PrimaryGreen,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                // Note Input
+                OutlinedTextField(
+                    value = editNote,
+                    onValueChange = { editNote = it },
+                    label = { Text("Ghi chú") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = editAmountText.toDoubleOrNull() ?: transaction.amount
+                    if (amount > 0) {
+                        onSave(
+                            transaction.copy(
+                                amount = amount,
+                                type = editType,
+                                categoryId = editCategoryId,
+                                accountId = editAccountId,
+                                note = editNote
+                            )
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+            ) {
+                Text("Lưu thay đổi")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
+                ) {
+                    Text("Xóa")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Hủy")
+                }
+            }
+        }
+    )
 }

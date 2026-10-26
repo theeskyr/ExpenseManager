@@ -33,11 +33,9 @@ class GeminiManager(context: Context) {
         const val DEFAULT_MODEL = "gemini-3.1-flash-lite"
 
         val AVAILABLE_MODELS = listOf(
-            "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Mặc định - Siêu nhanh, thông minh & tối ưu nhất)",
-            "gemini-2.5-flash-lite" to "Gemini 2.5 Flash Lite (Phản hồi tức thì, tiết kiệm)",
-            "gemini-2.0-flash" to "Gemini 2.0 Flash (Thế hệ mới, đa phương thức)",
-            "gemini-1.5-flash" to "Gemini 1.5 Flash (Ổn định, tối ưu hóa đơn)",
-            "gemini-1.5-pro" to "Gemini 1.5 Pro (Tư duy tài chính & đầu tư chuyên sâu)"
+            "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Mặc định - Mới nhất & Siêu nhanh)",
+            "gemini-2.5-flash" to "Gemini 2.5 Flash (Thế hệ mới, đa phương thức & tư duy)",
+            "gemini-2.5-flash-lite" to "Gemini 2.5 Flash Lite (Phản hồi tức thì, tiết kiệm chi phí)"
         )
     }
 
@@ -51,7 +49,8 @@ class GeminiManager(context: Context) {
 
     fun getSelectedModel(): String {
         val saved = prefs.getString(KEY_MODEL, null)
-        return if (saved.isNullOrBlank() || saved == "gemini-1.5-flash") {
+        val isInvalidOldModel = saved == "gemini-1.5-flash" || saved == "gemini-1.5-pro" || saved == "gemini-2.0-flash"
+        return if (saved.isNullOrBlank() || isInvalidOldModel) {
             DEFAULT_MODEL
         } else {
             saved

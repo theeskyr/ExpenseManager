@@ -53,6 +53,27 @@ class ExpenseRepository(
         accountDao.updateBalance(transaction.accountId, revertDelta)
     }
 
+    suspend fun updateTransaction(oldTransaction: TransactionEntity, newTransaction: TransactionEntity) {
+        // 1. Revert old transaction balance on old account
+        val revertDelta = if (oldTransaction.type == TransactionType.INCOME) {
+            -oldTransaction.amount
+        } else {
+            oldTransaction.amount
+        }
+        accountDao.updateBalance(oldTransaction.accountId, revertDelta)
+
+        // 2. Apply new transaction balance on new account
+        val newDelta = if (newTransaction.type == TransactionType.INCOME) {
+            newTransaction.amount
+        } else {
+            -newTransaction.amount
+        }
+        accountDao.updateBalance(newTransaction.accountId, newDelta)
+
+        // 3. Update transaction record
+        transactionDao.updateTransaction(newTransaction)
+    }
+
     // Accounts
     val allAccounts: Flow<List<AccountEntity>> = accountDao.getAllAccounts()
     val totalBalance: Flow<Double?> = accountDao.getTotalBalance()
