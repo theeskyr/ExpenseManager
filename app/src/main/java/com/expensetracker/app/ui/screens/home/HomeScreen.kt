@@ -20,11 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Calendar
+import java.util.Locale
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.AccountType
 import com.expensetracker.app.data.local.entity.CategoryEntity
@@ -59,6 +62,44 @@ fun HomeScreen(
     val accountMap = accounts.associateBy { it.id }
 
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+
+    val context = LocalContext.current
+    var selectedFilterDate by remember { mutableStateOf<Long?>(null) } // null = All days (default)
+
+    val filteredTransactions = remember(transactions, selectedFilterDate) {
+        if (selectedFilterDate == null) {
+            transactions
+        } else {
+            transactions.filter { DateUtils.getStartOfDay(it.timestamp) == selectedFilterDate }
+        }
+    }
+
+    val groupedTransactions = remember(filteredTransactions) {
+        filteredTransactions.groupBy { DateUtils.getStartOfDay(it.timestamp) }
+    }
+
+    val datePickerDialog = remember(context, selectedFilterDate) {
+        val calendar = Calendar.getInstance()
+        selectedFilterDate?.let { calendar.timeInMillis = it }
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val chosenCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, year)
+                    set(Calendar.MONTH, month)
+                    set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                selectedFilterDate = chosenCal.timeInMillis
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -225,29 +266,178 @@ fun HomeScreen(
                 }
             }
 
-            // Recent Transactions Header
+            // Recent Transactions & Date Filter Header
             item {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(top = 10.dp)
                 ) {
-                    Text(
-                        text = "Giao dịch gần đây",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${transactions.size} giao dịch",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF64748B)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Lịch sử giao dịch",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val subtitle = if (selectedFilterDate == null) {
+                                "${transactions.size} giao dịch • Toàn bộ các ngày"
+                            } else {
+                                "Ngày ${DateUtils.formatDate(selectedFilterDate!!)} • ${filteredTransactions.size} giao dịch"
+                            }
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+
+                        if (selectedFilterDate != null) {
+                            TextButton(
+                                onClick = { selectedFilterDate = null },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Xem tất cả",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryGreen
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Date Filter Chips Row
+                    val todayStart = remember { DateUtils.getStartOfDay() }
+                    val yesterdayStart = remember { DateUtils.getStartOfDay(System.currentTimeMillis() - 86400000L) }
+                    val isAllSelected = selectedFilterDate == null
+                    val isTodaySelected = selectedFilterDate == todayStart
+                    val isYesterdaySelected = selectedFilterDate == yesterdayStart
+                    val isCustomDate = selectedFilterDate != null && !isTodaySelected && !isYesterdaySelected
+
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 1. Tất cả
+                        item {
+                            FilterChip(
+                                selected = isAllSelected,
+                                onClick = { selectedFilterDate = null },
+                                label = { Text("Tất cả", fontSize = 12.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryGreen,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isAllSelected,
+                                    borderColor = if (isAllSelected) PrimaryGreen else Color(0xFFCBD5E1)
+                                )
+                            )
+                        }
+
+                        // 2. Hôm nay
+                        item {
+                            FilterChip(
+                                selected = isTodaySelected,
+                                onClick = {
+                                    selectedFilterDate = if (isTodaySelected) null else todayStart
+                                },
+                                label = { Text("Hôm nay", fontSize = 12.sp, fontWeight = if (isTodaySelected) FontWeight.Bold else FontWeight.Normal) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryGreen,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isTodaySelected,
+                                    borderColor = if (isTodaySelected) PrimaryGreen else Color(0xFFCBD5E1)
+                                )
+                            )
+                        }
+
+                        // 3. Hôm qua
+                        item {
+                            FilterChip(
+                                selected = isYesterdaySelected,
+                                onClick = {
+                                    selectedFilterDate = if (isYesterdaySelected) null else yesterdayStart
+                                },
+                                label = { Text("Hôm qua", fontSize = 12.sp, fontWeight = if (isYesterdaySelected) FontWeight.Bold else FontWeight.Normal) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryGreen,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isYesterdaySelected,
+                                    borderColor = if (isYesterdaySelected) PrimaryGreen else Color(0xFFCBD5E1)
+                                )
+                            )
+                        }
+
+                        // 4. Chọn ngày cụ thể
+                        item {
+                            FilterChip(
+                                selected = isCustomDate,
+                                onClick = {
+                                    datePickerDialog.show()
+                                },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(12.dp),
+                                            tint = if (isCustomDate) Color.White else Color(0xFF475569)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isCustomDate) DateUtils.formatDate(selectedFilterDate!!) else "Chọn ngày 📅",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isCustomDate) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        if (isCustomDate) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Hủy chọn ngày",
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clickable { selectedFilterDate = null },
+                                                tint = Color.White
+                                            )
+                                        }
+                                    }
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = PrimaryGreen,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isCustomDate,
+                                    borderColor = if (isCustomDate) PrimaryGreen else Color(0xFFCBD5E1)
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
-            if (transactions.isEmpty()) {
+            if (filteredTransactions.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -256,29 +446,59 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.EventBusy,
+                                contentDescription = null,
+                                tint = Color(0xFFCBD5E1),
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Chưa có giao dịch nào",
+                                text = if (selectedFilterDate != null)
+                                    "Không có giao dịch nào trong ngày này"
+                                else
+                                    "Chưa có giao dịch nào",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = Color(0xFF94A3B8)
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Bấm dấu (+) bên dưới để thêm khoản chi đầu tiên",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color(0xFFCBD5E1)
-                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            if (selectedFilterDate != null) {
+                                TextButton(onClick = { selectedFilterDate = null }) {
+                                    Text("Xem lại toàn bộ các ngày", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text(
+                                    text = "Bấm dấu (+) bên dưới để thêm khoản chi đầu tiên",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
                         }
                     }
                 }
             } else {
-                items(transactions, key = { it.id }) { tx ->
-                    TransactionItem(
-                        transaction = tx,
-                        category = categoryMap[tx.categoryId],
-                        account = accountMap[tx.accountId],
-                        onDelete = { viewModel.deleteTransaction(tx) },
-                        onClick = { editingTransaction = tx }
-                    )
+                groupedTransactions.forEach { (dayTimestamp, txList) ->
+                    val dayExpense = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                    val dayIncome = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+
+                    item(key = "day_header_$dayTimestamp") {
+                        DayGroupHeader(
+                            dayTimestamp = dayTimestamp,
+                            totalExpense = dayExpense,
+                            totalIncome = dayIncome,
+                            count = txList.size
+                        )
+                    }
+
+                    items(txList, key = { it.id }) { tx ->
+                        TransactionItem(
+                            transaction = tx,
+                            category = categoryMap[tx.categoryId],
+                            account = accountMap[tx.accountId],
+                            onDelete = { viewModel.deleteTransaction(tx) },
+                            onClick = { editingTransaction = tx }
+                        )
+                    }
                 }
             }
 
@@ -638,7 +858,7 @@ fun EditTransactionDialog(
     onDelete: () -> Unit
 ) {
     var editType by remember { mutableStateOf(transaction.type) }
-    var editAmountText by remember { mutableStateOf(transaction.amount.toLong().toString()) }
+    var editAmountText by remember { mutableStateOf(CurrencyUtils.formatInputAmount(transaction.amount.toLong().toString())) }
     var editCategoryId by remember { mutableStateOf(transaction.categoryId) }
     var editAccountId by remember { mutableStateOf(transaction.accountId) }
     var editNote by remember { mutableStateOf(transaction.note) }
@@ -716,7 +936,7 @@ fun EditTransactionDialog(
                 // Amount Input
                 OutlinedTextField(
                     value = editAmountText,
-                    onValueChange = { input -> if (input.all { it.isDigit() }) editAmountText = input },
+                    onValueChange = { input -> editAmountText = CurrencyUtils.formatInputAmount(input) },
                     label = { Text("Số tiền (₫)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
@@ -782,7 +1002,7 @@ fun EditTransactionDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val amount = editAmountText.toDoubleOrNull() ?: transaction.amount
+                    val amount = CurrencyUtils.parseAmount(editAmountText)
                     if (amount > 0) {
                         onSave(
                             transaction.copy(
@@ -814,4 +1034,83 @@ fun EditTransactionDialog(
             }
         }
     )
+}
+
+@Composable
+fun DayGroupHeader(
+    dayTimestamp: Long,
+    totalExpense: Double,
+    totalIncome: Double,
+    count: Int
+) {
+    val rawLabel = DateUtils.getHeaderDateString(dayTimestamp)
+    val dateLabel = rawLabel.replaceFirstChar {
+        if (it.isLowerCase()) it.titlecase(Locale("vi", "VN")) else it.toString()
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 4.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFF8FAFC),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = dateLabel,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF334155)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFE2E8F0)
+                ) {
+                    Text(
+                        text = "$count",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF475569),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            // Daily totals (Thu / Chi)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (totalIncome > 0) {
+                    Text(
+                        text = "+${CurrencyUtils.formatVnd(totalIncome)}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IncomeGreen
+                    )
+                }
+                if (totalIncome > 0 && totalExpense > 0) {
+                    Text(
+                        text = " • ",
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+                if (totalExpense > 0) {
+                    Text(
+                        text = "-${CurrencyUtils.formatVnd(totalExpense)}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ExpenseRed
+                    )
+                }
+            }
+        }
+    }
 }

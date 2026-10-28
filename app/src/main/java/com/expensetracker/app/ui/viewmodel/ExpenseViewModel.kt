@@ -32,8 +32,12 @@ data class ChatMessage(
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
     val bitmap: Bitmap? = null,
-    val transactionData: AiTransactionData? = null
-)
+    val transactions: List<AiTransactionData> = emptyList()
+) {
+    // Backwards compatibility for single transaction
+    val transactionData: AiTransactionData?
+        get() = transactions.firstOrNull()
+}
 
 class ExpenseViewModel(
     private val repository: ExpenseRepository,
@@ -331,15 +335,15 @@ class ExpenseViewModel(
             val spendingContext = "Chi tháng này: ${currentMonthExpense.value} ₫, Thu tháng này: ${currentMonthIncome.value} ₫"
             val response = geminiManager.processTextMessage(text, spendingContext)
 
-            // Auto add transaction if detected
-            response.detectedTransaction?.let { txData ->
-                autoSaveAiTransaction(txData)
+            // Auto add all transactions if detected
+            response.detectedTransactions.forEachIndexed { index, txData ->
+                autoSaveAiTransaction(txData, offsetMs = index * 20L)
             }
 
             val aiMsg = ChatMessage(
                 sender = MessageSender.AI,
                 text = response.replyText,
-                transactionData = response.detectedTransaction
+                transactions = response.detectedTransactions
             )
             _chatMessages.value = _chatMessages.value + aiMsg
             _isAiLoading.value = false
@@ -358,37 +362,69 @@ class ExpenseViewModel(
             _isAiLoading.value = true
             val response = geminiManager.processReceiptImage(bitmap, userPrompt)
 
-            // Auto add transaction if detected
-            response.detectedTransaction?.let { txData ->
-                autoSaveAiTransaction(txData)
+            // Auto add all transactions if detected
+            response.detectedTransactions.forEachIndexed { index, txData ->
+                autoSaveAiTransaction(txData, offsetMs = index * 20L)
             }
 
             val aiMsg = ChatMessage(
                 sender = MessageSender.AI,
                 text = response.replyText,
-                transactionData = response.detectedTransaction
+                transactions = response.detectedTransactions
             )
             _chatMessages.value = _chatMessages.value + aiMsg
             _isAiLoading.value = false
         }
     }
 
-    private suspend fun autoSaveAiTransaction(txData: AiTransactionData) {
+    private suspend fun autoSaveAiTransaction(txData: AiTransactionData, offsetMs: Long = 0L) {
+        if (txData.amount <= 0.0) return
         val currentAccounts = allAccounts.value
-        val matchedAccount = txData.suggestedAccountName?.let { accName ->
+
+        // Priority 1: Match account name directly
+        val matchedByName = txData.suggestedAccountName?.let { accName ->
             currentAccounts.firstOrNull { it.name.contains(accName, ignoreCase = true) }
-        } ?: currentAccounts.firstOrNull()
+        }
+
+        // Priority 2: If suggested account mentions Shopee/e-wallet, match E_WALLET account
+        val matchedByType = if (matchedByName == null && txData.suggestedAccountName != null) {
+            val s = txData.suggestedAccountName.lowercase()
+            if (s.contains("shopee") || s.contains("momo") || s.contains("zalo") || s.contains("ví")) {
+                currentAccounts.firstOrNull { it.type == AccountType.E_WALLET }
+            } else if (s.contains("bank") || s.contains("ngân hàng")) {
+                currentAccounts.firstOrNull { it.type == AccountType.BANK }
+            } else {
+                null
+            }
+        } else {
+            null
+        }
+
+        // Priority 3: Non-reserve account, else first account
+        val matchedAccount = matchedByName ?: matchedByType
+            ?: currentAccounts.firstOrNull { !it.isReserve }
+            ?: currentAccounts.firstOrNull()
 
         val accountId = matchedAccount?.id ?: 1L
+
+        // Validate category exists, or fallback
+        val currentCats = allCategories.value
+        val validCatId = if (currentCats.any { it.id == txData.categoryId }) {
+            txData.categoryId
+        } else if (txData.type == TransactionType.INCOME) {
+            "other_income"
+        } else {
+            "shopping"
+        }
 
         repository.addTransaction(
             TransactionEntity(
                 amount = txData.amount,
                 type = txData.type,
-                categoryId = txData.categoryId,
+                categoryId = validCatId,
                 accountId = accountId,
                 note = txData.note,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis() + offsetMs
             )
         )
     }

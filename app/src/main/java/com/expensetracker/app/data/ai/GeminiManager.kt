@@ -8,6 +8,7 @@ import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class AiTransactionData(
@@ -20,8 +21,12 @@ data class AiTransactionData(
 
 data class AiResponse(
     val replyText: String,
-    val detectedTransaction: AiTransactionData? = null
-)
+    val detectedTransactions: List<AiTransactionData> = emptyList()
+) {
+    // Backwards-compatible single transaction accessor
+    val detectedTransaction: AiTransactionData?
+        get() = detectedTransactions.firstOrNull()
+}
 
 class GeminiManager(context: Context) {
 
@@ -80,17 +85,28 @@ class GeminiManager(context: Context) {
                     Nhiệm vụ của bạn:
                     1. Phân tích tin nhắn người dùng hoặc ảnh chụp màn hình hóa đơn, bill mua sắm (Shopee, Lazada, Grab, Tiki, hóa đơn siêu thị, nhà hàng, biến động số dư ngân hàng...).
                     2. Hiểu tiếng Việt đời thường và từ lóng tiền tệ: "50k" = 50000, "1 lít" = 100000, "2 cành" = 2000, "1 củ / 1 chai / 1 tr" = 1000000.
-                    3. Bắt buộc trả về đúng định dạng JSON sau:
+                    3. Đối với ảnh hóa đơn / biên lai / bill mua sắm (như Shopee, Lazada, TikTok Shop, Grab, Siêu thị...):
+                       - Nếu có nhiều sản phẩm với số tiền cụ thể, hãy phân tích từng sản phẩm thành một giao dịch trong danh sách 'transactions'.
+                       - Không bao gồm dòng tổng tiền thành một giao dịch riêng nếu đã phân tích các món lẻ (để tránh cộng trùng tiền).
+                       - Nếu chỉ có duy nhất số tiền tổng thanh toán (hoặc hóa đơn quá dài/chỉ xem tổng bill), hãy tạo 1 giao dịch với số tiền tổng thanh toán thực tế (đã trừ mã giảm giá nếu có).
+                    4. Bắt buộc trả về đúng định dạng JSON có cấu trúc sau:
                     {
-                      "isTransaction": true hoặc false,
-                      "amount": 55000,
-                      "type": "EXPENSE" hoặc "INCOME",
-                      "categoryId": "food" | "shopping" | "transport" | "bills" | "housing" | "entertainment" | "health" | "education" | "salary" | "other_expense" | "other_income",
-                      "suggestedAccount": "Tiền mặt" | "VPBank" | "MoMo" | null,
-                      "note": "Mô tả ngắn gọn mục đích",
-                      "replyMessage": "Lời phản hồi thân thiện, ngắn gọn và tự nhiên gửi lại cho người dùng."
+                      "replyMessage": "Lời phản hồi thân thiện, tự nhiên và ngắn gọn bằng tiếng Việt gửi lại cho người dùng tóm tắt các khoản đã nhận diện.",
+                      "transactions": [
+                        {
+                          "amount": 32549,
+                          "type": "EXPENSE",
+                          "categoryId": "shopping",
+                          "suggestedAccount": "ShopeePay",
+                          "note": "Mua móc treo túi xách từ UUMIR Official Store"
+                        }
+                      ]
                     }
-                    Nếu tin nhắn là trò chuyện, tư vấn tài chính hoặc câu hỏi thông thường, đặt "isTransaction": false và điền câu trả lời hữu ích vào "replyMessage".
+                    5. Các mã danh mục (categoryId) hợp lệ:
+                       - Chi tiêu: "food" (ăn uống), "shopping" (mua sắm), "transport" (đi lại/xe), "bills" (hóa đơn), "housing" (nhà cửa), "entertainment" (giải trí), "health" (sức khỏe/y tế), "education" (học tập), "other_expense" (chi phí khác).
+                       - Thu nhập: "salary" (tiền lương), "bonus" (thưởng), "investment" (đầu tư), "other_income" (thu nhập khác).
+                    6. Nếu tin nhắn là trò chuyện, tư vấn tài chính hoặc câu hỏi thông thường không có giao dịch thu chi:
+                       Đặt "transactions": [] và điền câu trả lời tư vấn hữu ích vào "replyMessage".
                     """.trimIndent()
                 )
             }
@@ -107,9 +123,9 @@ class GeminiManager(context: Context) {
                 }
 
                 val prompt = if (currentSpendingContext.isNotBlank()) {
-                    "Bối cảnh chi tiêu hiện tại: $currentSpendingContext\nTin nhắn người dùng: $userText"
+                    "Bối cảnh chi tiêu hiện tại: $currentSpendingContext\nTin nhắn người dùng: $userText\nTrả về đúng định dạng JSON có cấu trúc gồm 'replyMessage' và 'transactions'."
                 } else {
-                    userText
+                    "Tin nhắn người dùng: $userText\nTrả về đúng định dạng JSON có cấu trúc gồm 'replyMessage' và 'transactions'."
                 }
 
                 val response = getModel().generateContent(prompt)
@@ -133,9 +149,9 @@ class GeminiManager(context: Context) {
                 }
 
                 val promptText = if (userPrompt.isNotBlank()) {
-                    "Hãy phân tích hóa đơn / bill này kèm ghi chú của tôi: $userPrompt"
+                    "Hãy phân tích ảnh hóa đơn/bill này kèm ghi chú của tôi: $userPrompt\nTrả về đúng cấu trúc JSON gồm 'replyMessage' và danh sách 'transactions'."
                 } else {
-                    "Hãy phân tích ảnh hóa đơn / bill mua hàng (Shopee, Lazada, siêu thị...) này, tìm tổng số tiền thanh toán thực tế, tên cửa hàng/danh mục và tạo giao dịch chi tiêu phù hợp."
+                    "Hãy phân tích ảnh hóa đơn / bill mua hàng (Shopee, Lazada, siêu thị...) này. Nhận diện các mặt hàng hoặc số tiền thanh toán thực tế, phân loại danh mục phù hợp và trả về đúng JSON có cấu trúc gồm 'replyMessage' và 'transactions'."
                 }
 
                 val inputContent = content {
@@ -186,36 +202,129 @@ class GeminiManager(context: Context) {
         }
 
     private fun parseAiJson(jsonString: String): AiResponse {
+        val clean = cleanJsonString(jsonString)
+        if (clean.isBlank()) {
+            return AiResponse(replyText = "Không nhận được phản hồi từ AI.")
+        }
+
         return try {
-            val json = JSONObject(jsonString)
-            val isTx = json.optBoolean("isTransaction", false)
-            val replyMessage = json.optString("replyMessage", "Đã xử lý thông tin thành công!")
+            val transactions = mutableListOf<AiTransactionData>()
+            val replyMessage: String
 
-            if (!isTx) {
-                return AiResponse(replyText = replyMessage)
+            if (clean.startsWith("[")) {
+                // Gemini returned a direct JSONArray of items
+                val jsonArray = JSONArray(clean)
+                val replyList = mutableListOf<String>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.optJSONObject(i) ?: continue
+                    val isTx = obj.optBoolean("isTransaction", true)
+                    val amount = obj.optDouble("amount", 0.0)
+                    if (isTx && amount > 0.0) {
+                        transactions.add(parseSingleTransaction(obj))
+                    }
+                    val msg = obj.optString("replyMessage", "").trim()
+                    if (msg.isNotBlank() && !replyList.contains(msg)) {
+                        replyList.add(msg)
+                    }
+                }
+                replyMessage = when {
+                    replyList.isNotEmpty() -> replyList.joinToString("\n\n")
+                    transactions.isNotEmpty() -> "Em đã nhận diện và ghi nhận ${transactions.size} giao dịch từ hóa đơn thành công!"
+                    else -> "Đã xử lý thông tin thành công."
+                }
+            } else {
+                // Gemini returned a JSONObject
+                val json = JSONObject(clean)
+                if (json.has("transactions")) {
+                    val arr = json.optJSONArray("transactions")
+                    if (arr != null) {
+                        for (i in 0 until arr.length()) {
+                            val obj = arr.optJSONObject(i) ?: continue
+                            val amount = obj.optDouble("amount", 0.0)
+                            if (amount > 0.0) {
+                                transactions.add(parseSingleTransaction(obj))
+                            }
+                        }
+                    }
+                } else {
+                    val isTx = json.optBoolean("isTransaction", true)
+                    val amount = json.optDouble("amount", 0.0)
+                    if (isTx && amount > 0.0) {
+                        transactions.add(parseSingleTransaction(json))
+                    }
+                }
+
+                val msg = json.optString("replyMessage", "").trim()
+                replyMessage = when {
+                    msg.isNotBlank() -> msg
+                    transactions.isNotEmpty() -> "Em đã nhận diện và ghi nhận ${transactions.size} khoản chi tiêu từ hóa đơn thành công!"
+                    else -> "Đã xử lý thông tin thành công."
+                }
             }
-
-            val amount = json.optDouble("amount", 0.0)
-            val typeStr = json.optString("type", "EXPENSE")
-            val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
-            val categoryId = json.optString("categoryId", "food")
-            val accountName = json.optString("suggestedAccount").takeIf { it.isNotBlank() && it != "null" }
-            val note = json.optString("note", "Ghi chép qua AI")
 
             AiResponse(
                 replyText = replyMessage,
-                detectedTransaction = AiTransactionData(
-                    amount = amount,
-                    type = type,
-                    categoryId = categoryId,
-                    suggestedAccountName = accountName,
-                    note = note
-                )
+                detectedTransactions = transactions
             )
         } catch (e: Exception) {
-            AiResponse(
-                replyText = if (jsonString.isNotBlank()) jsonString else "Đã phân tích xong nhưng không thể đọc dữ liệu có cấu trúc."
-            )
+            e.printStackTrace()
+            val trimmed = jsonString.trim()
+            val fallback = if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                "Em đã đọc hóa đơn nhưng cấu trúc dữ liệu chưa chuẩn. Bạn vui lòng thử lại hoặc chụp rõ nét hơn nhé!"
+            } else {
+                if (jsonString.isNotBlank()) jsonString else "Đã phân tích xong nhưng không thể đọc dữ liệu có cấu trúc."
+            }
+            AiResponse(replyText = fallback)
         }
+    }
+
+    private fun cleanJsonString(raw: String): String {
+        var str = raw.trim()
+        if (str.startsWith("```json", ignoreCase = true)) {
+            str = str.substring(7).trim()
+        } else if (str.startsWith("```")) {
+            str = str.substring(3).trim()
+        }
+        if (str.endsWith("```")) {
+            str = str.substring(0, str.length - 3).trim()
+        }
+
+        val firstBrace = str.indexOf('{')
+        val firstBracket = str.indexOf('[')
+
+        return if (firstBracket in 0 until (if (firstBrace >= 0) firstBrace else Int.MAX_VALUE)) {
+            val lastBracket = str.lastIndexOf(']')
+            if (lastBracket > firstBracket) {
+                str.substring(firstBracket, lastBracket + 1)
+            } else {
+                str
+            }
+        } else if (firstBrace >= 0) {
+            val lastBrace = str.lastIndexOf('}')
+            if (lastBrace > firstBrace) {
+                str.substring(firstBrace, lastBrace + 1)
+            } else {
+                str
+            }
+        } else {
+            str
+        }
+    }
+
+    private fun parseSingleTransaction(obj: JSONObject): AiTransactionData {
+        val amount = obj.optDouble("amount", 0.0)
+        val typeStr = obj.optString("type", "EXPENSE")
+        val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
+        val categoryId = obj.optString("categoryId", "shopping").ifBlank { "shopping" }
+        val accountName = obj.optString("suggestedAccount").takeIf { it.isNotBlank() && it != "null" }
+        val note = obj.optString("note", "Chi tiêu Shopee / Hóa đơn").ifBlank { "Chi tiêu Shopee / Hóa đơn" }
+
+        return AiTransactionData(
+            amount = amount,
+            type = type,
+            categoryId = categoryId,
+            suggestedAccountName = accountName,
+            note = note
+        )
     }
 }

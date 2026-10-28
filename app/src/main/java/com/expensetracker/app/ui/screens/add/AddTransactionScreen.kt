@@ -45,7 +45,7 @@ fun AddTransactionScreen(
 ) {
     var transactionType by remember { mutableStateOf(initialType ?: TransactionType.EXPENSE) }
     var amountText by remember { 
-        mutableStateOf(initialAmount?.let { if (it > 0) it.toLong().toString() else "" } ?: "") 
+        mutableStateOf(initialAmount?.let { if (it > 0) CurrencyUtils.formatInputAmount(it.toLong().toString()) else "" } ?: "") 
     }
     var note by remember { mutableStateOf(initialNote) }
     var selectedCategoryId by remember { mutableStateOf("") }
@@ -165,9 +165,7 @@ fun AddTransactionScreen(
                         OutlinedTextField(
                             value = amountText,
                             onValueChange = { input ->
-                                if (input.all { it.isDigit() }) {
-                                    amountText = input
-                                }
+                                amountText = CurrencyUtils.formatInputAmount(input)
                             },
                             textStyle = LocalTextStyle.current.copy(
                                 fontSize = 28.sp,
@@ -206,8 +204,8 @@ fun AddTransactionScreen(
                         listOf(50_000L to "+50k", 100_000L to "+100k", 200_000L to "+200k", 500_000L to "+500k").forEach { (value, label) ->
                             OutlinedButton(
                                 onClick = {
-                                    val current = amountText.toLongOrNull() ?: 0L
-                                    amountText = (current + value).toString()
+                                    val current = CurrencyUtils.parseAmount(amountText).toLong()
+                                    amountText = CurrencyUtils.formatInputAmount((current + value).toString())
                                 },
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp),
@@ -360,7 +358,7 @@ fun AddTransactionScreen(
             Spacer(modifier = Modifier.height(30.dp))
 
             // Save Button
-            val amount = amountText.toDoubleOrNull() ?: 0.0
+            val amount = CurrencyUtils.parseAmount(amountText)
             val isValid = amount > 0 && selectedCategoryId.isNotEmpty()
 
             Button(

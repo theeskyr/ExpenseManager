@@ -329,7 +329,7 @@ fun InvestmentScreen(
 
                     OutlinedTextField(
                         value = investedInput,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) investedInput = it },
+                        onValueChange = { investedInput = CurrencyUtils.formatInputAmount(it) },
                         label = { Text("Số vốn ban đầu (₫)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -338,7 +338,7 @@ fun InvestmentScreen(
 
                     OutlinedTextField(
                         value = currentValInput,
-                        onValueChange = { if (it.all { c -> c.isDigit() }) currentValInput = it },
+                        onValueChange = { currentValInput = CurrencyUtils.formatInputAmount(it) },
                         label = { Text("Giá trị hiện tại ước tính (₫)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -377,8 +377,8 @@ fun InvestmentScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val invested = investedInput.toDoubleOrNull() ?: 0.0
-                        val current = if (currentValInput.isNotBlank()) (currentValInput.toDoubleOrNull() ?: invested) else invested
+                        val invested = CurrencyUtils.parseAmount(investedInput)
+                        val current = if (currentValInput.isNotBlank()) CurrencyUtils.parseAmount(currentValInput) else invested
                         if (nameInput.isNotBlank() && invested > 0) {
                             viewModel.addInvestment(
                                 name = nameInput.trim(),

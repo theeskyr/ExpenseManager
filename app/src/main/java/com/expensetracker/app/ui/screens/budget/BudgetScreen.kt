@@ -64,7 +64,7 @@ fun BudgetScreen(
                 )
                 IconButton(
                     onClick = {
-                        budgetInput = if (currentBudget > 0) currentBudget.toLong().toString() else ""
+                        budgetInput = if (currentBudget > 0) CurrencyUtils.formatInputAmount(currentBudget.toLong().toString()) else ""
                         showSetBudgetDialog = true
                     }
                 ) {
@@ -239,10 +239,10 @@ fun BudgetScreen(
                     OutlinedTextField(
                         value = budgetInput,
                         onValueChange = { input ->
-                            if (input.all { it.isDigit() }) budgetInput = input
+                            budgetInput = CurrencyUtils.formatInputAmount(input)
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        placeholder = { Text("Ví dụ: 10000000") },
+                        placeholder = { Text("Ví dụ: 10.000.000") },
                         trailingIcon = { Text("₫", fontWeight = FontWeight.Bold) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -252,7 +252,7 @@ fun BudgetScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amount = budgetInput.toDoubleOrNull() ?: 0.0
+                        val amount = CurrencyUtils.parseAmount(budgetInput)
                         if (amount > 0) {
                             viewModel.setBudget(amount)
                         }

@@ -123,7 +123,7 @@ fun AccountsScreen(
                         .clickable {
                             editingAccount = account
                             editAccountName = account.name
-                            editBalanceText = if (account.currentBalance > 0) account.currentBalance.toLong().toString() else "0"
+                            editBalanceText = if (account.currentBalance > 0) CurrencyUtils.formatInputAmount(account.currentBalance.toLong().toString()) else ""
                             editIsReserve = account.isReserve || account.type == AccountType.RESERVE
                         },
                     shape = RoundedCornerShape(14.dp),
@@ -227,7 +227,7 @@ fun AccountsScreen(
 
                     OutlinedTextField(
                         value = editBalanceText,
-                        onValueChange = { input -> if (input.all { it.isDigit() }) editBalanceText = input },
+                        onValueChange = { input -> editBalanceText = CurrencyUtils.formatInputAmount(input) },
                         label = { Text("Số dư thực tế (₫)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -263,7 +263,7 @@ fun AccountsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val newBal = editBalanceText.toDoubleOrNull() ?: 0.0
+                        val newBal = CurrencyUtils.parseAmount(editBalanceText)
                         viewModel.updateAccount(
                             acc.copy(
                                 name = if (editAccountName.isNotBlank()) editAccountName else acc.name,
@@ -339,7 +339,7 @@ fun AccountsScreen(
 
                     OutlinedTextField(
                         value = initialBalanceText,
-                        onValueChange = { input -> if (input.all { it.isDigit() }) initialBalanceText = input },
+                        onValueChange = { input -> initialBalanceText = CurrencyUtils.formatInputAmount(input) },
                         label = { Text("Số dư ban đầu (₫)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -390,7 +390,7 @@ fun AccountsScreen(
                 Button(
                     onClick = {
                         if (accountName.isNotBlank()) {
-                            val bal = initialBalanceText.toDoubleOrNull() ?: 0.0
+                            val bal = CurrencyUtils.parseAmount(initialBalanceText)
                             val color = when (selectedType) {
                                 AccountType.BANK -> "#2196F3"
                                 AccountType.E_WALLET -> "#E91E63"

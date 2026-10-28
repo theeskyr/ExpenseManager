@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.TransactionType
@@ -601,34 +602,105 @@ fun ChatBubble(message: ChatMessage) {
             }
 
             // Auto-added Transaction Card Preview
-            message.transactionData?.let { tx ->
+            if (message.transactions.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFFF0FDF4),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = IncomeGreen,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val titleText = if (message.transactions.size == 1) {
+                                "Đã tự động lưu vào chi tiêu"
+                            } else {
+                                "Đã tự động lưu ${message.transactions.size} giao dịch vào chi tiêu"
+                            }
                             Text(
-                                text = "Đã tự động lưu vào chi tiêu",
+                                text = titleText,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF166534)
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        message.transactions.forEachIndexed { idx, tx ->
+                            if (idx > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .height(0.5.dp)
+                                        .background(Color(0xFFDCFCE7))
+                                )
+                            }
                             val isExp = tx.type == TransactionType.EXPENSE
                             val prefix = if (isExp) "- " else "+ "
-                            Text(
-                                text = "$prefix${CurrencyUtils.formatVnd(tx.amount)} • ${tx.note}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isExp) ExpenseRed else IncomeGreen
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = tx.note,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E293B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f, fill = false)
+                                        .padding(end = 6.dp)
+                                )
+                                Text(
+                                    text = "$prefix${CurrencyUtils.formatVnd(tx.amount)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isExp) ExpenseRed else IncomeGreen
+                                )
+                            }
+                        }
+
+                        if (message.transactions.size > 1) {
+                            val totalAmount = message.transactions.sumOf { it.amount }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                                    .height(1.dp)
+                                    .background(Color(0xFF86EFAC))
                             )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Tổng cộng:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF166534)
+                                )
+                                Text(
+                                    text = "- ${CurrencyUtils.formatVnd(totalAmount)}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ExpenseRed
+                                )
+                            }
                         }
                     }
                 }
