@@ -63,8 +63,8 @@ fun HomeScreen(
     val categories by viewModel.allCategories.collectAsState()
     val accounts by viewModel.allAccounts.collectAsState()
 
-    val categoryMap = categories.associateBy { it.id }
-    val accountMap = accounts.associateBy { it.id }
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
+    val accountMap = remember(accounts) { accounts.associateBy { it.id } }
 
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedAccountForDetail by remember { mutableStateOf<AccountEntity?>(null) }

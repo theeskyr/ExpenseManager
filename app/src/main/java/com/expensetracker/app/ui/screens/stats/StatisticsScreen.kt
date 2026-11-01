@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,15 +37,17 @@ fun StatisticsScreen(
     val categorySummaries by viewModel.statsCategorySummaries.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
 
-    val categoryMap = categories.associateBy { it.id }
+    val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
-    val chartSlices = categorySummaries.map { summary ->
-        val cat = categoryMap[summary.categoryId]
-        ChartSlice(
-            label = cat?.name ?: "Khác",
-            value = summary.totalAmount,
-            color = cat?.colorHex?.let { parseColor(it) } ?: PrimaryGreen
-        )
+    val chartSlices = remember(categorySummaries, categoryMap) {
+        categorySummaries.map { summary ->
+            val cat = categoryMap[summary.categoryId]
+            ChartSlice(
+                label = cat?.name ?: "Khác",
+                value = summary.totalAmount,
+                color = cat?.colorHex?.let { parseColor(it) } ?: PrimaryGreen
+            )
+        }
     }
 
     LazyColumn(

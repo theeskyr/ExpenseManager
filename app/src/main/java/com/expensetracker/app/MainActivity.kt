@@ -10,17 +10,28 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -39,8 +50,7 @@ import com.expensetracker.app.ui.screens.home.HomeScreen
 import com.expensetracker.app.ui.screens.investments.InvestmentScreen
 import com.expensetracker.app.ui.screens.settings.SettingsScreen
 import com.expensetracker.app.ui.screens.stats.StatisticsScreen
-import com.expensetracker.app.ui.theme.ExpenseTrackerTheme
-import com.expensetracker.app.ui.theme.PrimaryGreen
+import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.ui.viewmodel.ViewModelFactory
 
@@ -135,52 +145,84 @@ fun MainAppNavHost(
         bottomBar = {
             // Hide bottom bar when in AddTransaction screen or Investments or Accounts
             if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route && currentRoute != Screen.Accounts.route) {
-                Surface(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    shadowElevation = 8.dp,
-                    color = Color.White,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    NavigationBar(
-                        containerColor = Color.White,
-                        tonalElevation = 0.dp
+                    Surface(
+                        shape = ExpressivePillShape,
+                        shadowElevation = 10.dp,
+                        color = Color.White,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ExpressivePillShape)
                     ) {
-                        bottomNavItems.forEach { screen ->
-                            val isSelected = currentRoute == screen.route
-                            NavigationBarItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = screen.icon,
-                                        contentDescription = screen.title
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = screen.title,
-                                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
-                                        fontSize = 11.sp
-                                    )
-                                },
-                                selected = isSelected,
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = com.expensetracker.app.ui.theme.PrimaryGreen,
-                                    selectedTextColor = com.expensetracker.app.ui.theme.PrimaryGreen,
-                                    indicatorColor = com.expensetracker.app.ui.theme.PrimaryContainer,
-                                    unselectedIconColor = com.expensetracker.app.ui.theme.TextSecondary,
-                                    unselectedTextColor = com.expensetracker.app.ui.theme.TextSecondary
-                                ),
-                                onClick = {
-                                    if (currentRoute != screen.route) {
-                                        navController.navigate(screen.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            bottomNavItems.forEach { screen ->
+                                val isSelected = currentRoute == screen.route
+                                val animatedBgColor by animateColorAsState(
+                                    targetValue = if (isSelected) PrimaryContainer else Color.Transparent,
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+                                    label = "nav_item_bg"
+                                )
+                                val animatedContentColor by animateColorAsState(
+                                    targetValue = if (isSelected) PrimaryGreenDark else Color(0xFF64748B),
+                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+                                    label = "nav_item_content"
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 2.dp)
+                                        .clip(ExpressivePillShape)
+                                        .background(animatedBgColor)
+                                        .clickable {
+                                            if (currentRoute != screen.route) {
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
                                             }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = screen.icon,
+                                            contentDescription = screen.title,
+                                            tint = animatedContentColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = screen.title,
+                                            color = animatedContentColor,
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                            maxLines = 1
+                                        )
                                     }
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -192,7 +234,19 @@ fun MainAppNavHost(
             startDestination = Screen.Home.route,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            enterTransition = {
+                fadeIn(animationSpec = tween(150, easing = LinearEasing))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(150, easing = LinearEasing))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(150, easing = LinearEasing))
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(150, easing = LinearEasing))
+            }
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
