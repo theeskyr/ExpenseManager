@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,15 +71,20 @@ fun HomeScreen(
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var selectedAccountForDetail by remember { mutableStateOf<AccountEntity?>(null) }
     var selectedFilterAccountId by remember { mutableStateOf<Long?>(null) }
+    var selectedTransactionType by remember { mutableStateOf<TransactionType?>(null) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     val context = LocalContext.current
     var selectedFilterDate by remember { mutableStateOf<Long?>(null) } // null = All days (default)
 
-    val filteredTransactions = remember(transactions, selectedFilterDate, selectedFilterAccountId) {
+    val filteredTransactions = remember(transactions, selectedFilterDate, selectedFilterAccountId, selectedTransactionType) {
         transactions.filter { tx ->
             val matchDate = selectedFilterDate == null || DateUtils.getStartOfDay(tx.timestamp) == selectedFilterDate
             val matchAccount = selectedFilterAccountId == null || tx.accountId == selectedFilterAccountId
-            matchDate && matchAccount
+            val matchType = selectedTransactionType == null || tx.type == selectedTransactionType
+            matchDate && matchAccount && matchType
         }
     }
 
@@ -122,6 +129,7 @@ fun HomeScreen(
         }
     ) { paddingValues ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
@@ -137,7 +145,21 @@ fun HomeScreen(
                     availableBalance = availableBalance,
                     monthExpense = monthExpense,
                     monthIncome = monthIncome,
-                    onManageAccounts = onNavigateToAccounts
+                    onManageAccounts = onNavigateToAccounts,
+                    onViewMonthIncome = {
+                        selectedTransactionType = TransactionType.INCOME
+                        coroutineScope.launch {
+                            val targetIndex = if (monthlyBudget != null) 4 else 3
+                            listState.animateScrollToItem(targetIndex)
+                        }
+                    },
+                    onViewMonthExpense = {
+                        selectedTransactionType = TransactionType.EXPENSE
+                        coroutineScope.launch {
+                            val targetIndex = if (monthlyBudget != null) 4 else 3
+                            listState.animateScrollToItem(targetIndex)
+                        }
+                    }
                 )
             }
 
@@ -306,12 +328,15 @@ fun HomeScreen(
                             )
                             val subtitle = buildString {
                                 append("${filteredTransactions.size} giao dịch")
+                                if (selectedTransactionType != null) {
+                                    append(if (selectedTransactionType == TransactionType.EXPENSE) " • Chi tiêu" else " • Thu nhập")
+                                }
                                 if (selectedFilterAccountId != null) {
                                     append(" • Ví: ${accountMap[selectedFilterAccountId]?.name ?: ""}")
                                 }
                                 if (selectedFilterDate != null) {
                                     append(" • Ngày ${DateUtils.formatDate(selectedFilterDate!!)}")
-                                } else if (selectedFilterAccountId == null) {
+                                } else if (selectedFilterAccountId == null && selectedTransactionType == null) {
                                     append(" • Toàn bộ các ngày")
                                 }
                             }
@@ -322,11 +347,12 @@ fun HomeScreen(
                             )
                         }
 
-                        if (selectedFilterDate != null || selectedFilterAccountId != null) {
+                        if (selectedFilterDate != null || selectedFilterAccountId != null || selectedTransactionType != null) {
                             TextButton(
                                 onClick = {
                                     selectedFilterDate = null
                                     selectedFilterAccountId = null
+                                    selectedTransactionType = null
                                 },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
@@ -335,6 +361,103 @@ fun HomeScreen(
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = PrimaryGreen
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Transaction Type Switcher: Tất cả / Chi tiêu (-) / Thu nhập (+) (M3 Expressive Pill Segmented)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .clip(ExpressivePillShape)
+                            .background(Color(0xFFF1F5F9))
+                            .padding(3.dp)
+                    ) {
+                        // 1. Tất cả
+                        val isAllType = selectedTransactionType == null
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(ExpressivePillShape)
+                                .background(if (isAllType) Color.White else Color.Transparent)
+                                .clickable { selectedTransactionType = null },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Tất cả",
+                                fontSize = 12.sp,
+                                fontWeight = if (isAllType) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isAllType) PrimaryGreenDark else Color(0xFF64748B)
+                            )
+                        }
+
+                        // 2. Chi tiêu (-)
+                        val isExpenseSelected = selectedTransactionType == TransactionType.EXPENSE
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(ExpressivePillShape)
+                                .background(if (isExpenseSelected) ExpenseRed else Color.Transparent)
+                                .clickable {
+                                    selectedTransactionType = if (isExpenseSelected) null else TransactionType.EXPENSE
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingDown,
+                                    contentDescription = null,
+                                    tint = if (isExpenseSelected) Color.White else ExpenseRed,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Chi tiêu",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isExpenseSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isExpenseSelected) Color.White else Color(0xFF64748B)
+                                )
+                            }
+                        }
+
+                        // 3. Thu nhập (+)
+                        val isIncomeSelected = selectedTransactionType == TransactionType.INCOME
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(ExpressivePillShape)
+                                .background(if (isIncomeSelected) IncomeGreen else Color.Transparent)
+                                .clickable {
+                                    selectedTransactionType = if (isIncomeSelected) null else TransactionType.INCOME
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    tint = if (isIncomeSelected) Color.White else IncomeGreen,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Thu nhập",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isIncomeSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isIncomeSelected) Color.White else Color(0xFF64748B)
                                 )
                             }
                         }
@@ -613,7 +736,9 @@ fun TotalBalanceCard(
     availableBalance: Double,
     monthExpense: Double,
     monthIncome: Double,
-    onManageAccounts: () -> Unit = {}
+    onManageAccounts: () -> Unit = {},
+    onViewMonthIncome: () -> Unit = {},
+    onViewMonthExpense: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -713,74 +838,118 @@ fun TotalBalanceCard(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Income & Expense Summary
+                // Income & Expense Summary (Clickable Pills to view transactions)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Income
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(ExpressiveSquircleIconShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                    // Income Card
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onViewMonthIncome() },
+                        shape = ExpressiveItemShape,
+                        color = Color.White.copy(alpha = 0.16f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = "Thu nhập",
-                                tint = Color.White,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Thu trong tháng",
-                                color = Color.White.copy(alpha = 0.82f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = CurrencyUtils.formatVnd(monthIncome),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(ExpressiveSquircleIconShape)
+                                    .background(Color.White.copy(alpha = 0.22f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = "Thu nhập",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Thu trong tháng",
+                                        color = Color.White.copy(alpha = 0.88f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.75f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                                Text(
+                                    text = CurrencyUtils.formatVnd(monthIncome),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
 
-                    // Expense
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(ExpressiveSquircleIconShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                    // Expense Card
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onViewMonthExpense() },
+                        shape = ExpressiveItemShape,
+                        color = Color.White.copy(alpha = 0.16f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.TrendingDown,
-                                contentDescription = "Chi tiêu",
-                                tint = Color.White,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Chi trong tháng",
-                                color = Color.White.copy(alpha = 0.82f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = CurrencyUtils.formatVnd(monthExpense),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(ExpressiveSquircleIconShape)
+                                    .background(Color.White.copy(alpha = 0.22f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.TrendingDown,
+                                    contentDescription = "Chi tiêu",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Chi trong tháng",
+                                        color = Color.White.copy(alpha = 0.88f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.75f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                                Text(
+                                    text = CurrencyUtils.formatVnd(monthExpense),
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

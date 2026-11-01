@@ -35,7 +35,6 @@ fun TransactionItem(
     val isExpense = transaction.type == TransactionType.EXPENSE
     val categoryColor = category?.colorHex?.let { parseColor(it) } ?: Color(0xFF64748B)
     val categoryName = category?.name ?: "Khác"
-    val accountName = account?.name ?: "Ví tiền"
 
     Card(
         modifier = modifier
@@ -89,22 +88,34 @@ fun TransactionItem(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Account Pill Badge
+                    // Account Pill Badge (Nguồn tiền)
+                    val accColor = account?.colorHex?.let { parseColor(it) } ?: Color(0xFF059669)
                     Surface(
                         shape = ExpressivePillShape,
-                        color = Color(0xFFF1F5F9)
+                        color = accColor.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(0.6.dp, accColor.copy(alpha = 0.35f))
                     ) {
-                        Text(
-                            text = accountName,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF475569),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CategoryIcon(
+                                name = account?.iconName ?: "AccountBalanceWallet",
+                                tint = accColor,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = account?.name ?: "Ví tiền",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = accColor
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = DateUtils.formatTime(transaction.timestamp),
+                        text = "• ${DateUtils.formatTime(transaction.timestamp)}",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextTertiary
