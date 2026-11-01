@@ -23,7 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.AccountType
+import com.expensetracker.app.data.local.entity.TransactionEntity
+import com.expensetracker.app.ui.components.AccountDetailBottomSheet
 import com.expensetracker.app.ui.components.CategoryIcon
+import com.expensetracker.app.ui.components.EditTransactionDialog
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CurrencyUtils
@@ -36,6 +39,11 @@ fun AccountsScreen(
 ) {
     val accounts by viewModel.allAccounts.collectAsState()
     val totalBalance by viewModel.totalBalance.collectAsState()
+    val transactions by viewModel.allTransactions.collectAsState()
+    val categories by viewModel.allCategories.collectAsState()
+
+    var selectedDetailAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
@@ -125,10 +133,7 @@ fun AccountsScreen(
                         .fillMaxWidth()
                         .clip(ExpressiveItemShape)
                         .clickable {
-                            editingAccount = account
-                            editAccountName = account.name
-                            editBalanceText = if (account.currentBalance > 0) CurrencyUtils.formatInputAmount(account.currentBalance.toLong().toString()) else ""
-                            editIsReserve = account.isReserve || account.type == AccountType.RESERVE
+                            selectedDetailAccount = account
                         },
                     shape = ExpressiveItemShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -190,7 +195,7 @@ fun AccountsScreen(
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "$typeLabel • Chạm để sửa số dư",
+                                text = "$typeLabel • Chạm để xem chi tiết & lịch sử",
                                 fontSize = 12.sp,
                                 color = Color(0xFF64748B)
                             )
@@ -203,12 +208,22 @@ fun AccountsScreen(
                                 fontSize = 15.sp,
                                 color = PrimaryGreen
                             )
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Sửa số dư",
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(16.dp).padding(top = 4.dp)
-                            )
+                            IconButton(
+                                onClick = {
+                                    editingAccount = account
+                                    editAccountName = account.name
+                                    editBalanceText = if (account.currentBalance > 0) CurrencyUtils.formatInputAmount(account.currentBalance.toLong().toString()) else ""
+                                    editIsReserve = account.isReserve || account.type == AccountType.RESERVE
+                                },
+                                modifier = Modifier.size(28.dp).padding(top = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Sửa số dư",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -435,6 +450,43 @@ fun AccountsScreen(
                 TextButton(onClick = { showAddDialog = false }) {
                     Text("Hủy")
                 }
+            }
+        )
+    }
+
+    // Account Detail Bottom Sheet (Lịch sử thu / chi của nguồn tiền)
+    selectedDetailAccount?.let { acc ->
+        AccountDetailBottomSheet(
+            account = acc,
+            allTransactions = transactions,
+            categories = categories,
+            onDismiss = { selectedDetailAccount = null },
+            onEditAccount = { accountToEdit ->
+                selectedDetailAccount = null
+                editingAccount = accountToEdit
+                editAccountName = accountToEdit.name
+                editBalanceText = if (accountToEdit.currentBalance > 0) CurrencyUtils.formatInputAmount(accountToEdit.currentBalance.toLong().toString()) else ""
+                editIsReserve = accountToEdit.isReserve || accountToEdit.type == AccountType.RESERVE
+            },
+            onEditTransaction = { tx -> editingTransaction = tx },
+            onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) }
+        )
+    }
+
+    // Edit Transaction Dialog
+    editingTransaction?.let { tx ->
+        EditTransactionDialog(
+            transaction = tx,
+            categories = categories,
+            accounts = accounts,
+            onDismiss = { editingTransaction = null },
+            onSave = { updatedTx ->
+                viewModel.updateTransaction(tx, updatedTx)
+                editingTransaction = null
+            },
+            onDelete = {
+                viewModel.deleteTransaction(tx)
+                editingTransaction = null
             }
         )
     }

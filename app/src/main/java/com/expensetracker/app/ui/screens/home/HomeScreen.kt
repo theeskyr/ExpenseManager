@@ -35,7 +35,10 @@ import com.expensetracker.app.data.local.entity.AccountType
 import com.expensetracker.app.data.local.entity.CategoryEntity
 import com.expensetracker.app.data.local.entity.TransactionEntity
 import com.expensetracker.app.data.local.entity.TransactionType
+import com.expensetracker.app.ui.components.AccountDetailBottomSheet
 import com.expensetracker.app.ui.components.CategoryIcon
+import com.expensetracker.app.ui.components.DayGroupHeader
+import com.expensetracker.app.ui.components.EditTransactionDialog
 import com.expensetracker.app.ui.components.TransactionItem
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
@@ -64,15 +67,17 @@ fun HomeScreen(
     val accountMap = accounts.associateBy { it.id }
 
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+    var selectedAccountForDetail by remember { mutableStateOf<AccountEntity?>(null) }
+    var selectedFilterAccountId by remember { mutableStateOf<Long?>(null) }
 
     val context = LocalContext.current
     var selectedFilterDate by remember { mutableStateOf<Long?>(null) } // null = All days (default)
 
-    val filteredTransactions = remember(transactions, selectedFilterDate) {
-        if (selectedFilterDate == null) {
-            transactions
-        } else {
-            transactions.filter { DateUtils.getStartOfDay(it.timestamp) == selectedFilterDate }
+    val filteredTransactions = remember(transactions, selectedFilterDate, selectedFilterAccountId) {
+        transactions.filter { tx ->
+            val matchDate = selectedFilterDate == null || DateUtils.getStartOfDay(tx.timestamp) == selectedFilterDate
+            val matchAccount = selectedFilterAccountId == null || tx.accountId == selectedFilterAccountId
+            matchDate && matchAccount
         }
     }
 
@@ -233,7 +238,8 @@ fun HomeScreen(
                     items(accounts, key = { it.id }) { acc ->
                         AccountQuickCard(
                             account = acc,
-                            onClick = onNavigateToAccounts
+                            isSelected = (selectedFilterAccountId == acc.id),
+                            onClick = { selectedAccountForDetail = acc }
                         )
                     }
 
@@ -298,10 +304,16 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
-                            val subtitle = if (selectedFilterDate == null) {
-                                "${transactions.size} giao dịch • Toàn bộ các ngày"
-                            } else {
-                                "Ngày ${DateUtils.formatDate(selectedFilterDate!!)} • ${filteredTransactions.size} giao dịch"
+                            val subtitle = buildString {
+                                append("${filteredTransactions.size} giao dịch")
+                                if (selectedFilterAccountId != null) {
+                                    append(" • Ví: ${accountMap[selectedFilterAccountId]?.name ?: ""}")
+                                }
+                                if (selectedFilterDate != null) {
+                                    append(" • Ngày ${DateUtils.formatDate(selectedFilterDate!!)}")
+                                } else if (selectedFilterAccountId == null) {
+                                    append(" • Toàn bộ các ngày")
+                                }
                             }
                             Text(
                                 text = subtitle,
@@ -310,9 +322,12 @@ fun HomeScreen(
                             )
                         }
 
-                        if (selectedFilterDate != null) {
+                        if (selectedFilterDate != null || selectedFilterAccountId != null) {
                             TextButton(
-                                onClick = { selectedFilterDate = null },
+                                onClick = {
+                                    selectedFilterDate = null
+                                    selectedFilterAccountId = null
+                                },
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
@@ -447,6 +462,37 @@ fun HomeScreen(
                                 )
                             )
                         }
+
+                        // 5. Filter theo Nguồn tiền / Ví (nếu đang chọn)
+                        val filteredAccount = accountMap[selectedFilterAccountId]
+                        if (filteredAccount != null) {
+                            item {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedFilterAccountId = null },
+                                    shape = ExpressivePillShape,
+                                    label = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Ví: ${filteredAccount.name}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Hủy lọc ví",
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = PrimaryGreenDark,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -536,6 +582,25 @@ fun HomeScreen(
             onDelete = {
                 viewModel.deleteTransaction(tx)
                 editingTransaction = null
+            }
+        )
+    }
+
+    // Account Detail Bottom Sheet (Lịch sử thu / chi của nguồn tiền)
+    selectedAccountForDetail?.let { acc ->
+        AccountDetailBottomSheet(
+            account = acc,
+            allTransactions = transactions,
+            categories = categories,
+            onDismiss = { selectedAccountForDetail = null },
+            onEditAccount = {
+                selectedAccountForDetail = null
+                onNavigateToAccounts()
+            },
+            onEditTransaction = { tx -> editingTransaction = tx },
+            onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
+            onFilterOnHomeScreen = { accId ->
+                selectedFilterAccountId = accId
             }
         )
     }
@@ -819,6 +884,7 @@ fun BudgetSummaryCard(
 @Composable
 fun AccountQuickCard(
     account: AccountEntity,
+    isSelected: Boolean = false,
     onClick: () -> Unit
 ) {
     val accColor = parseColor(account.colorHex)
@@ -828,9 +894,12 @@ fun AccountQuickCard(
             .height(88.dp)
             .clickable { onClick() },
         shape = ExpressiveItemShape,
-        color = Color.White,
-        shadowElevation = 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
+        color = if (isSelected) PrimaryContainer.copy(alpha = 0.5f) else Color.White,
+        shadowElevation = if (isSelected) 2.dp else 1.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            if (isSelected) 2.dp else 1.dp,
+            if (isSelected) PrimaryGreen else Color(0xFFF1F5F9)
+        )
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -875,280 +944,6 @@ fun AccountQuickCard(
                     fontWeight = FontWeight.ExtraBold,
                     color = PrimaryGreen
                 )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditTransactionDialog(
-    transaction: TransactionEntity,
-    categories: List<CategoryEntity>,
-    accounts: List<AccountEntity>,
-    onDismiss: () -> Unit,
-    onSave: (TransactionEntity) -> Unit,
-    onDelete: () -> Unit
-) {
-    var editType by remember { mutableStateOf(transaction.type) }
-    var editAmountText by remember { mutableStateOf(CurrencyUtils.formatInputAmount(transaction.amount.toLong().toString())) }
-    var editCategoryId by remember { mutableStateOf(transaction.categoryId) }
-    var editAccountId by remember { mutableStateOf(transaction.accountId) }
-    var editNote by remember { mutableStateOf(transaction.note) }
-
-    val filteredCategories = categories.filter { it.type == editType }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = ExpressiveDialogShape,
-        title = { Text("Chỉnh sửa giao dịch", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Type Switcher: Chi tiêu vs Thu nhập (M3 Expressive Pill Segmented)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .clip(ExpressivePillShape)
-                        .background(Color(0xFFF1F5F9))
-                        .padding(3.dp)
-                ) {
-                    // Chi tiêu
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(ExpressivePillShape)
-                            .background(if (editType == TransactionType.EXPENSE) ExpenseRed else Color.Transparent)
-                            .clickable {
-                                editType = TransactionType.EXPENSE
-                                val firstExp = categories.firstOrNull { it.type == TransactionType.EXPENSE }
-                                if (firstExp != null && filteredCategories.none { it.id == editCategoryId }) {
-                                    editCategoryId = firstExp.id
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Chi tiêu (-)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (editType == TransactionType.EXPENSE) Color.White else Color(0xFF64748B)
-                        )
-                    }
-
-                    // Thu nhập
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(ExpressivePillShape)
-                            .background(if (editType == TransactionType.INCOME) IncomeGreen else Color.Transparent)
-                            .clickable {
-                                editType = TransactionType.INCOME
-                                val firstInc = categories.firstOrNull { it.type == TransactionType.INCOME }
-                                if (firstInc != null && filteredCategories.none { it.id == editCategoryId }) {
-                                    editCategoryId = firstInc.id
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Thu nhập (+)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (editType == TransactionType.INCOME) Color.White else Color(0xFF64748B)
-                        )
-                    }
-                }
-
-                // Amount Input
-                OutlinedTextField(
-                    value = editAmountText,
-                    onValueChange = { input -> editAmountText = CurrencyUtils.formatInputAmount(input) },
-                    label = { Text("Số tiền (₫)") },
-                    shape = ExpressiveInputShape,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Category Picker
-                Text("Danh mục:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(filteredCategories, key = { it.id }) { cat ->
-                        val isSelected = editCategoryId == cat.id
-                        val catColor = parseColor(cat.colorHex)
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { editCategoryId = cat.id },
-                            shape = ExpressivePillShape,
-                            leadingIcon = {
-                                CategoryIcon(
-                                    name = cat.iconName,
-                                    tint = if (isSelected) Color.White else catColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = if (editType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-
-                // Account / Wallet Picker
-                Text("Nguồn tiền / Ví:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(accounts, key = { it.id }) { acc ->
-                        val isSelected = editAccountId == acc.id
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { editAccountId = acc.id },
-                            shape = ExpressivePillShape,
-                            label = { Text(acc.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryGreen,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-
-                // Note Input
-                OutlinedTextField(
-                    value = editNote,
-                    onValueChange = { editNote = it },
-                    label = { Text("Ghi chú") },
-                    shape = ExpressiveInputShape,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amount = CurrencyUtils.parseAmount(editAmountText)
-                    if (amount > 0) {
-                        onSave(
-                            transaction.copy(
-                                amount = amount,
-                                type = editType,
-                                categoryId = editCategoryId,
-                                accountId = editAccountId,
-                                note = editNote
-                            )
-                        )
-                    }
-                },
-                shape = ExpressivePillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
-            ) {
-                Text("Lưu thay đổi", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
-                ) {
-                    Text("Xóa", fontWeight = FontWeight.Bold)
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Hủy")
-                }
-            }
-        }
-    )
-}
-
-@Composable
-fun DayGroupHeader(
-    dayTimestamp: Long,
-    totalExpense: Double,
-    totalIncome: Double,
-    count: Int
-) {
-    val rawLabel = DateUtils.getHeaderDateString(dayTimestamp)
-    val dateLabel = rawLabel.replaceFirstChar {
-        if (it.isLowerCase()) it.titlecase(Locale("vi", "VN")) else it.toString()
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp),
-        shape = ExpressiveItemShape,
-        color = Color(0xFFF8FAFC),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = dateLabel,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Surface(
-                    shape = ExpressivePillShape,
-                    color = Color(0xFFE2E8F0)
-                ) {
-                    Text(
-                        text = "$count",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF475569),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                    )
-                }
-            }
-
-            // Daily totals (Thu / Chi)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (totalIncome > 0) {
-                    Text(
-                        text = "+${CurrencyUtils.formatVnd(totalIncome)}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IncomeGreen
-                    )
-                }
-                if (totalIncome > 0 && totalExpense > 0) {
-                    Text(
-                        text = " • ",
-                        fontSize = 11.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-                if (totalExpense > 0) {
-                    Text(
-                        text = "-${CurrencyUtils.formatVnd(totalExpense)}",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ExpenseRed
-                    )
-                }
             }
         }
     }
