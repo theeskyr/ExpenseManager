@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -105,10 +107,12 @@ fun HomeScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToAdd,
+                shape = RoundedCornerShape(20.dp),
                 containerColor = PrimaryGreen,
-                contentColor = Color.White
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm giao dịch")
+                Icon(Icons.Default.Add, contentDescription = "Thêm giao dịch", modifier = Modifier.size(28.dp))
             }
         }
     ) { paddingValues ->
@@ -120,7 +124,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 // Header Total Balance Card with Reserve & Available Balance
                 TotalBalanceCard(
                     totalBalance = totalBalance,
@@ -132,38 +136,39 @@ fun HomeScreen(
                 )
             }
 
-            // Quick Actions: AI & Investments
+            // Quick Actions: AI & Investments (M3 Expressive Cards)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // AI Assistant Card
                     Card(
                         modifier = Modifier
                             .weight(1f)
                             .clickable { onNavigateToAi() },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
+                                    .size(38.dp)
+                                    .clip(ExpressiveSquircleIconShape)
                                     .background(PrimaryGreen),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Trợ lý AI", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF166534))
-                                Text("Chat & Quét bill", fontSize = 10.sp, color = Color(0xFF15803D))
+                                Text("Trợ lý AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
+                                Text("Chat & Quét bill", fontSize = 11.sp, color = Color(0xFF15803D))
                             }
                         }
                     }
@@ -173,27 +178,28 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable { onNavigateToInvestments() },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = ExpressiveCardShape,
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
+                                    .size(38.dp)
+                                    .clip(ExpressiveSquircleIconShape)
                                     .background(Color(0xFF2563EB)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E40AF))
-                                Text("Vàng, Cổ phiếu...", fontSize = 10.sp, color = Color(0xFF2563EB))
+                                Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E40AF))
+                                Text("Vàng, Cổ phiếu...", fontSize = 11.sp, color = Color(0xFF2563EB))
                             }
                         }
                     }
@@ -235,21 +241,29 @@ fun HomeScreen(
                     item {
                         Surface(
                             modifier = Modifier
-                                .width(120.dp)
-                                .height(82.dp)
+                                .width(130.dp)
+                                .height(88.dp)
                                 .clickable { onNavigateToAccounts() },
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+                            shape = ExpressiveItemShape,
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Icon(Icons.Default.AddCircleOutline, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(ExpressiveSquircleIconShape)
+                                        .background(PrimaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("Thêm nguồn tiền", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                Text("Thêm ví mới", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -538,18 +552,18 @@ fun TotalBalanceCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = ExpressiveHeroShape,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(PrimaryGreenDark, PrimaryGreen)
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFF047857), Color(0xFF059669), Color(0xFF10B981))
                     )
                 )
-                .padding(20.dp)
+                .padding(22.dp)
         ) {
             Column {
                 Row(
@@ -560,51 +574,54 @@ fun TotalBalanceCard(
                     Text(
                         text = "Tổng số dư tài sản",
                         color = Color.White.copy(alpha = 0.85f),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium
                     )
                     Surface(
                         modifier = Modifier.clickable { onManageAccounts() },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = ExpressivePillShape,
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Quản lý ví ›", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Quản lý ví ›", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = CurrencyUtils.formatVnd(totalBalance),
                     color = Color.White,
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.ExtraBold
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Breakdown: Dự trữ vs Khả dụng
+                // Breakdown: Dự trữ vs Khả dụng (M3 Expressive Tonal Pills)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Available Balance
                     Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color.White.copy(alpha = 0.18f)
+                        shape = ExpressiveItemShape,
+                        color = Color.White.copy(alpha = 0.16f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            Text("💳 Khả dụng chi tiêu", color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp)
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Text("💳 Khả dụng chi tiêu", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 CurrencyUtils.formatVnd(availableBalance),
                                 color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
                             )
                         }
                     }
@@ -612,22 +629,24 @@ fun TotalBalanceCard(
                     // Reserve Balance
                     Surface(
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color.White.copy(alpha = 0.18f)
+                        shape = ExpressiveItemShape,
+                        color = Color.White.copy(alpha = 0.16f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
                     ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            Text("🛡️ Quỹ tiền dự trữ", color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp)
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Text("🛡️ Quỹ tiền dự trữ", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 CurrencyUtils.formatVnd(reserveBalance),
                                 color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Income & Expense Summary
                 Row(
@@ -638,30 +657,31 @@ fun TotalBalanceCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(36.dp)
+                                .clip(ExpressiveSquircleIconShape)
                                 .background(Color.White.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.TrendingUp,
+                                Icons.AutoMirrored.Filled.TrendingUp,
                                 contentDescription = "Thu nhập",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Thu trong tháng",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
                             )
                             Text(
                                 text = CurrencyUtils.formatVnd(monthIncome),
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
@@ -670,30 +690,31 @@ fun TotalBalanceCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(36.dp)
+                                .clip(ExpressiveSquircleIconShape)
                                 .background(Color.White.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.TrendingDown,
+                                Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = "Chi tiêu",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "Chi trong tháng",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
                             )
                             Text(
                                 text = CurrencyUtils.formatVnd(monthExpense),
                                 color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
@@ -720,11 +741,12 @@ fun BudgetSummaryCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = ExpressiveCardShape,
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -733,37 +755,45 @@ fun BudgetSummaryCard(
                 Text(
                     text = "Ngân sách tháng này",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 )
                 if (isOver) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Đã vượt mức!", color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Surface(shape = ExpressivePillShape, color = ExpenseRedContainer) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Đã vượt mức!", color = ExpenseRed, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
                     }
                 } else {
-                    Text(
-                        text = "Còn lại: ${CurrencyUtils.formatVnd(remaining)}",
-                        color = Color(0xFF10B981),
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
+                    Surface(shape = ExpressivePillShape, color = PrimaryContainer) {
+                        Text(
+                            text = "Còn lại: ${CurrencyUtils.formatVnd(remaining)}",
+                            color = PrimaryGreen,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             LinearProgressIndicator(
                 progress = { progress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .height(10.dp)
+                    .clip(ExpressivePillShape),
                 color = barColor,
                 trackColor = Color(0xFFF1F5F9),
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -772,11 +802,13 @@ fun BudgetSummaryCard(
                 Text(
                     text = "Đã chi: ${CurrencyUtils.formatVnd(spent)} (${(progress * 100).toInt()}%)",
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     color = Color(0xFF64748B)
                 )
                 Text(
                     text = "Hạn mức: ${CurrencyUtils.formatVnd(limit)}",
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
                     color = Color(0xFF64748B)
                 )
             }
@@ -792,16 +824,16 @@ fun AccountQuickCard(
     val accColor = parseColor(account.colorHex)
     Surface(
         modifier = Modifier
-            .width(135.dp)
-            .height(82.dp)
+            .width(142.dp)
+            .height(88.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
+        shape = ExpressiveItemShape,
         color = Color.White,
         shadowElevation = 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
@@ -811,20 +843,20 @@ fun AccountQuickCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
+                        .size(28.dp)
+                        .clip(ExpressiveSquircleIconShape)
                         .background(accColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     CategoryIcon(
                         name = account.iconName,
                         tint = accColor,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
                 if (account.isReserve || account.type == AccountType.RESERVE) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFE0F2FE)) {
-                        Text("🛡️ Dự trữ", fontSize = 8.sp, color = Color(0xFF0369A1), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp))
+                    Surface(shape = ExpressivePillShape, color = Color(0xFFE0F2FE)) {
+                        Text("🛡️ Dự trữ", fontSize = 8.sp, color = Color(0xFF0369A1), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                     }
                 }
             }
@@ -833,13 +865,14 @@ fun AccountQuickCard(
                     text = account.name,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = CurrencyUtils.formatVnd(account.currentBalance),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = PrimaryGreen
                 )
             }
@@ -867,29 +900,30 @@ fun EditTransactionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Chỉnh sửa giao dịch", fontWeight = FontWeight.Bold) },
+        shape = ExpressiveDialogShape,
+        title = { Text("Chỉnh sửa giao dịch", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Type Switcher: Chi tiêu vs Thu nhập
+                // Type Switcher: Chi tiêu vs Thu nhập (M3 Expressive Pill Segmented)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .height(44.dp)
+                        .clip(ExpressivePillShape)
                         .background(Color(0xFFF1F5F9))
-                        .padding(2.dp)
+                        .padding(3.dp)
                 ) {
                     // Chi tiêu
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(ExpressivePillShape)
                             .background(if (editType == TransactionType.EXPENSE) ExpenseRed else Color.Transparent)
                             .clickable {
                                 editType = TransactionType.EXPENSE
@@ -913,7 +947,7 @@ fun EditTransactionDialog(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(ExpressivePillShape)
                             .background(if (editType == TransactionType.INCOME) IncomeGreen else Color.Transparent)
                             .clickable {
                                 editType = TransactionType.INCOME
@@ -938,13 +972,14 @@ fun EditTransactionDialog(
                     value = editAmountText,
                     onValueChange = { input -> editAmountText = CurrencyUtils.formatInputAmount(input) },
                     label = { Text("Số tiền (₫)") },
+                    shape = ExpressiveInputShape,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 // Category Picker
-                Text("Danh mục:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                Text("Danh mục:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -954,6 +989,7 @@ fun EditTransactionDialog(
                         FilterChip(
                             selected = isSelected,
                             onClick = { editCategoryId = cat.id },
+                            shape = ExpressivePillShape,
                             leadingIcon = {
                                 CategoryIcon(
                                     name = cat.iconName,
@@ -961,7 +997,7 @@ fun EditTransactionDialog(
                                     modifier = Modifier.size(16.dp)
                                 )
                             },
-                            label = { Text(cat.name, fontSize = 11.sp) },
+                            label = { Text(cat.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = if (editType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen,
                                 selectedLabelColor = Color.White
@@ -971,7 +1007,7 @@ fun EditTransactionDialog(
                 }
 
                 // Account / Wallet Picker
-                Text("Nguồn tiền / Ví:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                Text("Nguồn tiền / Ví:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -980,7 +1016,8 @@ fun EditTransactionDialog(
                         FilterChip(
                             selected = isSelected,
                             onClick = { editAccountId = acc.id },
-                            label = { Text(acc.name, fontSize = 11.sp) },
+                            shape = ExpressivePillShape,
+                            label = { Text(acc.name, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = PrimaryGreen,
                                 selectedLabelColor = Color.White
@@ -994,6 +1031,7 @@ fun EditTransactionDialog(
                     value = editNote,
                     onValueChange = { editNote = it },
                     label = { Text("Ghi chú") },
+                    shape = ExpressiveInputShape,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1015,9 +1053,10 @@ fun EditTransactionDialog(
                         )
                     }
                 },
+                shape = ExpressivePillShape,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
             ) {
-                Text("Lưu thay đổi")
+                Text("Lưu thay đổi", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -1026,7 +1065,7 @@ fun EditTransactionDialog(
                     onClick = onDelete,
                     colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
                 ) {
-                    Text("Xóa")
+                    Text("Xóa", fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = onDismiss) {
                     Text("Hủy")
@@ -1052,27 +1091,27 @@ fun DayGroupHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 4.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = ExpressiveItemShape,
         color = Color(0xFFF8FAFC),
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = dateLabel,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF334155)
+                    color = Color(0xFF1E293B)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = ExpressivePillShape,
                     color = Color(0xFFE2E8F0)
                 ) {
                     Text(

@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -72,14 +73,14 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Thêm giao dịch", fontWeight = FontWeight.Bold) },
+                title = { Text("Thêm giao dịch", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White
+                    containerColor = BackgroundLight
                 )
             )
         }
@@ -91,12 +92,12 @@ fun AddTransactionScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Expense / Income Segmented Buttons
+            // Expense / Income Segmented Buttons (M3 Expressive Pill Segmented)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .height(50.dp)
+                    .clip(ExpressivePillShape)
                     .background(Color(0xFFF1F5F9))
                     .padding(4.dp)
             ) {
@@ -104,7 +105,7 @@ fun AddTransactionScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(ExpressivePillShape)
                         .background(if (transactionType == TransactionType.EXPENSE) ExpenseRed else Color.Transparent)
                         .clickable {
                             transactionType = TransactionType.EXPENSE
@@ -113,8 +114,9 @@ fun AddTransactionScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Khoản chi",
+                        text = "Khoản chi (-)",
                         fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
                         color = if (transactionType == TransactionType.EXPENSE) Color.White else Color(0xFF64748B)
                     )
                 }
@@ -123,7 +125,7 @@ fun AddTransactionScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(ExpressivePillShape)
                         .background(if (transactionType == TransactionType.INCOME) IncomeGreen else Color.Transparent)
                         .clickable {
                             transactionType = TransactionType.INCOME
@@ -132,32 +134,35 @@ fun AddTransactionScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Khoản thu",
+                        text = "Khoản thu (+)",
                         fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
                         color = if (transactionType == TransactionType.INCOME) Color.White else Color(0xFF64748B)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Amount Input Card
+            // Amount Input Card (M3 Expressive Card)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = ExpressiveHeroShape,
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Số tiền",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Số tiền giao dịch",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
                         color = Color(0xFF64748B)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
@@ -168,16 +173,16 @@ fun AddTransactionScreen(
                                 amountText = CurrencyUtils.formatInputAmount(input)
                             },
                             textStyle = LocalTextStyle.current.copy(
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 textAlign = TextAlign.Center,
                                 color = if (transactionType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen
                             ),
                             placeholder = {
                                 Text(
                                     "0",
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.ExtraBold,
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.fillMaxWidth(),
                                     color = Color(0xFFCBD5E1)
@@ -185,7 +190,7 @@ fun AddTransactionScreen(
                             },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             trailingIcon = {
-                                Text("₫", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                Text("₫", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF64748B))
                             },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -196,22 +201,31 @@ fun AddTransactionScreen(
                         )
                     }
 
-                    // Quick amount shortcuts (+50k, +100k, +200k, +500k)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Quick amount shortcuts (+50k, +100k, +200k, +500k) as Expressive Tonal Pills
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         listOf(50_000L to "+50k", 100_000L to "+100k", 200_000L to "+200k", 500_000L to "+500k").forEach { (value, label) ->
-                            OutlinedButton(
-                                onClick = {
-                                    val current = CurrencyUtils.parseAmount(amountText).toLong()
-                                    amountText = CurrencyUtils.formatInputAmount((current + value).toString())
-                                },
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(8.dp)
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        val current = CurrencyUtils.parseAmount(amountText).toLong()
+                                        amountText = CurrencyUtils.formatInputAmount((current + value).toString())
+                                    },
+                                shape = ExpressivePillShape,
+                                color = Color(0xFFF1F5F9),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                             ) {
-                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF334155))
+                                }
                             }
                         }
                     }
@@ -228,7 +242,7 @@ fun AddTransactionScreen(
             )
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Category Grid
+            // Category Grid (M3 Expressive Squircle Tiles)
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -245,12 +259,12 @@ fun AddTransactionScreen(
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .clip(ExpressiveItemShape)
                                     .background(if (isSelected) catColor.copy(alpha = 0.15f) else Color.White)
                                     .border(
                                         width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) catColor else Color(0xFFE2E8F0),
-                                        shape = RoundedCornerShape(12.dp)
+                                        color = if (isSelected) catColor else Color(0xFFF1F5F9),
+                                        shape = ExpressiveItemShape
                                     )
                                     .clickable { selectedCategoryId = category.id }
                                     .padding(vertical = 12.dp, horizontal = 4.dp),
@@ -258,8 +272,8 @@ fun AddTransactionScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
+                                        .size(38.dp)
+                                        .clip(ExpressiveSquircleIconShape)
                                         .background(catColor),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -269,7 +283,7 @@ fun AddTransactionScreen(
                                 Text(
                                     text = category.name,
                                     fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) catColor else Color(0xFF334155),
                                     maxLines = 1,
                                     textAlign = TextAlign.Center
@@ -303,8 +317,8 @@ fun AddTransactionScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clickable { selectedAccountId = account.id },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) PrimaryGreen.copy(alpha = 0.15f) else Color.White,
+                        shape = ExpressiveItemShape,
+                        color = if (isSelected) PrimaryContainer else Color.White,
                         border = androidx.compose.foundation.BorderStroke(
                             width = if (isSelected) 2.dp else 1.dp,
                             color = if (isSelected) PrimaryGreen else Color(0xFFE2E8F0)
@@ -317,7 +331,7 @@ fun AddTransactionScreen(
                             Text(
                                 text = account.name,
                                 fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSelected) PrimaryGreenDark else Color(0xFF334155),
                                 maxLines = 1,
                                 textAlign = TextAlign.Center
@@ -326,7 +340,8 @@ fun AddTransactionScreen(
                             Text(
                                 text = CurrencyUtils.formatVnd(account.currentBalance),
                                 fontSize = 10.sp,
-                                color = Color(0xFF64748B),
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) PrimaryGreenDark else Color(0xFF64748B),
                                 maxLines = 1
                             )
                         }
@@ -348,16 +363,18 @@ fun AddTransactionScreen(
                 onValueChange = { note = it },
                 placeholder = { Text("Ví dụ: Ăn trưa phở bò, Mua quà sinh nhật...") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = ExpressiveInputShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White
+                    focusedContainerColor = Color.White,
+                    unfocusedBorderColor = Color(0xFFE2E8F0),
+                    focusedBorderColor = PrimaryGreen
                 )
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // Save Button
+            // Save Button (M3 Expressive Pill Button)
             val amount = CurrencyUtils.parseAmount(amountText)
             val isValid = amount > 0 && selectedCategoryId.isNotEmpty()
 
@@ -378,13 +395,13 @@ fun AddTransactionScreen(
                 enabled = isValid,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(14.dp),
+                    .height(54.dp),
+                shape = ExpressivePillShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (transactionType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen
                 )
             ) {
-                Icon(Icons.Default.Check, contentDescription = null)
+                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Lưu giao dịch",

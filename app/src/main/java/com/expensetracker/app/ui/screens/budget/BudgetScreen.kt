@@ -77,17 +77,19 @@ fun BudgetScreen(
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = ExpressiveHeroShape,
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(2.dp)
+                elevation = CardDefaults.cardElevation(1.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Ngân sách tháng ${calendar.get(Calendar.MONTH) + 1}/${calendar.get(Calendar.YEAR)}",
                         fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
                         color = Color(0xFF64748B)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -95,8 +97,8 @@ fun BudgetScreen(
                     if (currentBudget > 0) {
                         Text(
                             text = CurrencyUtils.formatVnd(currentBudget),
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = TextPrimary
                         )
                     } else {
@@ -106,23 +108,23 @@ fun BudgetScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF94A3B8)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Button(
                             onClick = {
                                 budgetInput = ""
                                 showSetBudgetDialog = true
                             },
-                            shape = RoundedCornerShape(10.dp),
+                            shape = ExpressivePillShape,
                             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                         ) {
-                            Text("Đặt hạn mức chi tiêu")
+                            Text("Đặt hạn mức chi tiêu", fontWeight = FontWeight.Bold)
                         }
                     }
 
                     if (currentBudget > 0) {
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Progress Bar
+                        // Progress Bar (M3 Expressive Pill Progress)
                         val barColor = when {
                             isOver -> ExpenseRed
                             progress > 0.8f -> WarningOrange
@@ -134,32 +136,34 @@ fun BudgetScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(12.dp)
-                                .clip(RoundedCornerShape(6.dp)),
+                                .clip(ExpressivePillShape),
                             color = barColor,
                             trackColor = Color(0xFFF1F5F9)
                         )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Đã tiêu", fontSize = 12.sp, color = Color(0xFF64748B))
+                                Text("Đã tiêu", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     CurrencyUtils.formatVnd(currentMonthExpense),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = ExpenseRed
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text(if (isOver) "Vượt mức" else "Còn lại", fontSize = 12.sp, color = Color(0xFF64748B))
+                                Text(if (isOver) "Vượt mức" else "Còn lại", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     CurrencyUtils.formatVnd(if (isOver) -remaining else remaining),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = if (isOver) ExpenseRed else IncomeGreen
                                 )
                             }
@@ -174,22 +178,34 @@ fun BudgetScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ExpressiveCardShape,
                     colors = CardDefaults.cardColors(
                         containerColor = if (isOver) Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isOver) Color(0xFFFECDD3) else Color(0xFFBBF7D0)
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(18.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (isOver) Icons.Default.Warning else Icons.Default.Check,
-                            contentDescription = null,
-                            tint = if (isOver) ExpenseRed else IncomeGreen,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(ExpressiveSquircleIconShape)
+                                .background(if (isOver) ExpenseRedContainer else PrimaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isOver) Icons.Default.Warning else Icons.Default.Check,
+                                contentDescription = null,
+                                tint = if (isOver) ExpenseRed else IncomeGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             if (isOver) {
                                 Text(
@@ -227,7 +243,8 @@ fun BudgetScreen(
     if (showSetBudgetDialog) {
         AlertDialog(
             onDismissRequest = { showSetBudgetDialog = false },
-            title = { Text("Đặt hạn mức ngân sách tháng") },
+            shape = ExpressiveDialogShape,
+            title = { Text("Đặt hạn mức ngân sách tháng", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
@@ -235,7 +252,7 @@ fun BudgetScreen(
                         fontSize = 13.sp,
                         color = Color(0xFF64748B)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     OutlinedTextField(
                         value = budgetInput,
                         onValueChange = { input ->
@@ -244,6 +261,7 @@ fun BudgetScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         placeholder = { Text("Ví dụ: 10.000.000") },
                         trailingIcon = { Text("₫", fontWeight = FontWeight.Bold) },
+                        shape = ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -258,9 +276,10 @@ fun BudgetScreen(
                         }
                         showSetBudgetDialog = false
                     },
+                    shape = ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Lưu")
+                    Text("Lưu", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

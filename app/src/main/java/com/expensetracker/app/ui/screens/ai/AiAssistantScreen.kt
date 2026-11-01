@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -35,10 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.TransactionType
-import com.expensetracker.app.ui.theme.ExpenseRed
-import com.expensetracker.app.ui.theme.IncomeGreen
-import com.expensetracker.app.ui.theme.PrimaryGreen
-import com.expensetracker.app.ui.theme.PrimaryGreenDark
+import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ChatMessage
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.ui.viewmodel.MessageSender
@@ -109,16 +107,16 @@ fun AiAssistantScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Trở về Trang chủ")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Trở về Trang chủ")
                     }
                 },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(PrimaryGreen.copy(alpha = 0.15f)),
+                                .size(36.dp)
+                                .clip(com.expensetracker.app.ui.theme.ExpressiveSquircleIconShape)
+                                .background(PrimaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
@@ -129,6 +127,7 @@ fun AiAssistantScreen(
                             Text(
                                 text = if (apiKey.isNotBlank()) selectedModel else "Chưa cài API Key",
                                 fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = if (apiKey.isNotBlank()) PrimaryGreen else ExpenseRed
                             )
                         }
@@ -152,7 +151,7 @@ fun AiAssistantScreen(
                         Icon(Icons.Default.Key, contentDescription = "Cài đặt API Key", tint = PrimaryGreen)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
             )
         }
     ) { paddingValues ->
@@ -182,7 +181,7 @@ fun AiAssistantScreen(
                                 showApiKeyDialog = true
                             },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = com.expensetracker.app.ui.theme.ExpressivePillShape,
                             colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
                         ) {
                             Text("Nhập Key", fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -368,7 +367,8 @@ fun AiAssistantScreen(
     if (showApiKeyDialog) {
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
-            title = { Text("Cấu hình Gemini API Key") },
+            shape = com.expensetracker.app.ui.theme.ExpressiveDialogShape,
+            title = { Text("Cấu hình Gemini API Key", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
@@ -376,11 +376,12 @@ fun AiAssistantScreen(
                         fontSize = 12.sp,
                         color = Color(0xFF64748B)
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = apiKeyInput,
                         onValueChange = { apiKeyInput = it },
                         placeholder = { Text("AIzaSy...") },
+                        shape = com.expensetracker.app.ui.theme.ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -388,6 +389,7 @@ fun AiAssistantScreen(
                     Text(
                         "Nếu chưa có key, bạn có thể lấy miễn phí tại aistudio.google.com",
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         color = PrimaryGreenDark
                     )
                 }
@@ -398,9 +400,10 @@ fun AiAssistantScreen(
                         viewModel.saveGeminiApiKey(apiKeyInput)
                         showApiKeyDialog = false
                     },
+                    shape = com.expensetracker.app.ui.theme.ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Lưu API Key")
+                    Text("Lưu API Key", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -415,9 +418,10 @@ fun AiAssistantScreen(
     if (showModelDialog) {
         AlertDialog(
             onDismissRequest = { showModelDialog = false },
-            title = { Text("Chọn Mô Hình AI (Model)") },
+            shape = com.expensetracker.app.ui.theme.ExpressiveDialogShape,
+            title = { Text("Chọn Mô Hình AI (Model)", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "Chọn phiên bản AI phù hợp với nhu cầu của bạn:",
                         fontSize = 12.sp,
@@ -426,10 +430,9 @@ fun AiAssistantScreen(
                     com.expensetracker.app.data.ai.GeminiManager.AVAILABLE_MODELS.forEach { (modelId, modelName) ->
                         val isSelected = selectedModel == modelId
                         Surface(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) PrimaryGreen.copy(alpha = 0.12f) else Color(0xFFF8FAFC),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = com.expensetracker.app.ui.theme.ExpressiveItemShape,
+                            color = if (isSelected) PrimaryContainer else Color(0xFFF8FAFC),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
                                 if (isSelected) PrimaryGreen else Color(0xFFE2E8F0)
@@ -440,7 +443,7 @@ fun AiAssistantScreen(
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(10.dp),
+                                modifier = Modifier.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
@@ -473,12 +476,14 @@ fun AiAssistantScreen(
                     Text(
                         "Hoặc nhập Model ID tùy chỉnh khác:",
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color(0xFF64748B)
                     )
                     OutlinedTextField(
                         value = customModelInput,
                         onValueChange = { customModelInput = it },
                         placeholder = { Text("Ví dụ: gemini-2.0-flash") },
+                        shape = com.expensetracker.app.ui.theme.ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -492,9 +497,10 @@ fun AiAssistantScreen(
                         }
                         showModelDialog = false
                     },
+                    shape = com.expensetracker.app.ui.theme.ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Áp dụng")
+                    Text("Áp dụng", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -526,9 +532,9 @@ fun ChatBubble(message: ChatMessage) {
         if (!isUser) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(PrimaryGreen.copy(alpha = 0.15f)),
+                    .size(34.dp)
+                    .clip(com.expensetracker.app.ui.theme.ExpressiveSquircleIconShape)
+                    .background(PrimaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.SmartToy, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
@@ -537,7 +543,7 @@ fun ChatBubble(message: ChatMessage) {
         }
 
         Column(
-            modifier = Modifier.widthIn(max = 280.dp),
+            modifier = Modifier.widthIn(max = 285.dp),
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
             // Attached Image if user sent a receipt
@@ -547,32 +553,33 @@ fun ChatBubble(message: ChatMessage) {
                     contentDescription = null,
                     modifier = Modifier
                         .size(160.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(com.expensetracker.app.ui.theme.ExpressiveItemShape)
                         .padding(bottom = 6.dp)
                 )
             }
 
+            // M3 Expressive Speech Bubble with asymmetric corners
             Surface(
                 modifier = Modifier.combinedClickable(
                     onClick = {},
                     onLongClick = copyTextAction
                 ),
                 shape = RoundedCornerShape(
-                    topStart = 16.dp,
-                    topEnd = 16.dp,
-                    bottomStart = if (isUser) 16.dp else 4.dp,
-                    bottomEnd = if (isUser) 4.dp else 16.dp
+                    topStart = 20.dp,
+                    topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 20.dp
                 ),
                 color = if (isUser) PrimaryGreen else Color.White,
-                shadowElevation = 0.5.dp,
+                shadowElevation = 1.dp,
                 border = if (!isUser) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null
             ) {
                 Text(
                     text = message.text,
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     color = if (isUser) Color.White else Color(0xFF1E293B),
                     fontSize = 13.sp,
-                    lineHeight = 18.sp
+                    lineHeight = 19.sp
                 )
             }
 

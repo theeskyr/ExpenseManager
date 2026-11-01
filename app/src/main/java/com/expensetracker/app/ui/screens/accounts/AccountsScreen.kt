@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,8 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.AccountType
 import com.expensetracker.app.ui.components.CategoryIcon
-import com.expensetracker.app.ui.theme.PrimaryGreen
-import com.expensetracker.app.ui.theme.parseColor
+import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CurrencyUtils
 
@@ -52,13 +52,13 @@ fun AccountsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nguồn Tiền & Ví", fontWeight = FontWeight.Bold) },
+                title = { Text("Nguồn Tiền & Ví", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
             )
         },
         floatingActionButton = {
@@ -70,10 +70,12 @@ fun AccountsScreen(
                     isReserveInput = false
                     showAddDialog = true
                 },
+                shape = RoundedCornerShape(20.dp),
                 containerColor = PrimaryGreen,
-                contentColor = Color.White
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(3.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm ví mới")
+                Icon(Icons.Default.Add, contentDescription = "Thêm ví mới", modifier = Modifier.size(28.dp))
             }
         }
     ) { paddingValues ->
@@ -93,21 +95,22 @@ fun AccountsScreen(
                 )
             }
 
-            // Total Balance Card
+            // Total Balance Card (M3 Expressive Hero Card)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = ExpressiveHeroShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    elevation = CardDefaults.cardElevation(1.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = "Tổng tài sản thực tế", fontSize = 13.sp, color = Color(0xFF64748B))
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(text = "Tổng tài sản thực tế", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             text = CurrencyUtils.formatVnd(totalBalance),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = PrimaryGreen
                         )
                     }
@@ -120,15 +123,17 @@ fun AccountsScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(ExpressiveItemShape)
                         .clickable {
                             editingAccount = account
                             editAccountName = account.name
                             editBalanceText = if (account.currentBalance > 0) CurrencyUtils.formatInputAmount(account.currentBalance.toLong().toString()) else ""
                             editIsReserve = account.isReserve || account.type == AccountType.RESERVE
                         },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = ExpressiveItemShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(0.5.dp)
+                    elevation = CardDefaults.cardElevation(1.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
                     Row(
                         modifier = Modifier
@@ -138,8 +143,8 @@ fun AccountsScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
+                                .size(46.dp)
+                                .clip(ExpressiveSquircleIconShape)
                                 .background(accColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
@@ -156,13 +161,14 @@ fun AccountsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = account.name,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
                                 )
                                 if (account.isReserve || account.type == AccountType.RESERVE) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = ExpressivePillShape,
                                         color = Color(0xFFE0F2FE)
                                     ) {
                                         Text(
@@ -170,7 +176,7 @@ fun AccountsScreen(
                                             fontSize = 10.sp,
                                             color = Color(0xFF0369A1),
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
@@ -182,6 +188,7 @@ fun AccountsScreen(
                                 AccountType.CREDIT_CARD -> "Thẻ tín dụng"
                                 AccountType.RESERVE -> "Quỹ dự phòng khẩn cấp"
                             }
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "$typeLabel • Chạm để sửa số dư",
                                 fontSize = 12.sp,
@@ -192,8 +199,9 @@ fun AccountsScreen(
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = CurrencyUtils.formatVnd(account.currentBalance),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                color = PrimaryGreen
                             )
                             Icon(
                                 Icons.Default.Edit,
@@ -216,9 +224,10 @@ fun AccountsScreen(
     editingAccount?.let { acc ->
         AlertDialog(
             onDismissRequest = { editingAccount = null },
-            title = { Text("Cập nhật số dư: ${acc.name}") },
+            shape = ExpressiveDialogShape,
+            title = { Text("Cập nhật số dư: ${acc.name}", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         "Nhập số dư thực tế hiện tại bạn đang có trong nguồn tiền này:",
                         fontSize = 12.sp,
@@ -229,6 +238,7 @@ fun AccountsScreen(
                         value = editBalanceText,
                         onValueChange = { input -> editBalanceText = CurrencyUtils.formatInputAmount(input) },
                         label = { Text("Số dư thực tế (₫)") },
+                        shape = ExpressiveInputShape,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -238,6 +248,7 @@ fun AccountsScreen(
                         value = editAccountName,
                         onValueChange = { editAccountName = it },
                         label = { Text("Tên nguồn tiền") },
+                        shape = ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -273,9 +284,10 @@ fun AccountsScreen(
                         )
                         editingAccount = null
                     },
+                    shape = ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Lưu số dư")
+                    Text("Lưu số dư", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -288,7 +300,7 @@ fun AccountsScreen(
                             },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444))
                         ) {
-                            Text("Xóa ví")
+                            Text("Xóa ví", fontWeight = FontWeight.Bold)
                         }
                     }
                     TextButton(onClick = { editingAccount = null }) {
@@ -302,10 +314,11 @@ fun AccountsScreen(
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("Thêm ví / tài khoản mới") },
+            shape = ExpressiveDialogShape,
+            title = { Text("Thêm ví / tài khoản mới", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Gợi ý nhanh:", fontSize = 11.sp, color = Color(0xFF64748B))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Gợi ý nhanh:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -323,7 +336,8 @@ fun AccountsScreen(
                                     selectedType = presetType
                                     isReserveInput = presetReserve
                                 },
-                                label = { Text(presetName, fontSize = 10.sp) }
+                                shape = ExpressivePillShape,
+                                label = { Text(presetName, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
                             )
                         }
                     }
@@ -333,6 +347,7 @@ fun AccountsScreen(
                         onValueChange = { accountName = it },
                         label = { Text("Tên ví / Ngân hàng") },
                         placeholder = { Text("Ví dụ: VPBank, MoMo, Tiền mặt...") },
+                        shape = ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -341,12 +356,13 @@ fun AccountsScreen(
                         value = initialBalanceText,
                         onValueChange = { input -> initialBalanceText = CurrencyUtils.formatInputAmount(input) },
                         label = { Text("Số dư ban đầu (₫)") },
+                        shape = ExpressiveInputShape,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Text("Loại tài khoản:", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Text("Loại tài khoản:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -363,7 +379,8 @@ fun AccountsScreen(
                                     selectedType = type
                                     if (type == AccountType.RESERVE) isReserveInput = true
                                 },
-                                label = { Text(label, fontSize = 10.sp) }
+                                shape = ExpressivePillShape,
+                                label = { Text(label, fontSize = 10.sp, fontWeight = if (selectedType == type) FontWeight.Bold else FontWeight.Normal) }
                             )
                         }
                     }
@@ -408,9 +425,10 @@ fun AccountsScreen(
                             showAddDialog = false
                         }
                     },
+                    shape = ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Thêm ví")
+                    Text("Thêm ví", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

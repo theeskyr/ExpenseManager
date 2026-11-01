@@ -21,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -133,33 +135,53 @@ fun MainAppNavHost(
         bottomBar = {
             // Hide bottom bar when in AddTransaction screen or Investments or Accounts
             if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route && currentRoute != Screen.Accounts.route) {
-                NavigationBar(
-                    containerColor = Color.White,
-                    tonalElevation = NavigationBarDefaults.Elevation
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                    shadowElevation = 8.dp,
+                    color = Color.White,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
-                    bottomNavItems.forEach { screen ->
-                        val isSelected = currentRoute == screen.route
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = isSelected,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = PrimaryGreen,
-                                selectedTextColor = PrimaryGreen,
-                                indicatorColor = PrimaryGreen.copy(alpha = 0.15f)
-                            ),
-                            onClick = {
-                                if (currentRoute != screen.route) {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                    NavigationBar(
+                        containerColor = Color.White,
+                        tonalElevation = 0.dp
+                    ) {
+                        bottomNavItems.forEach { screen ->
+                            val isSelected = currentRoute == screen.route
+                            NavigationBarItem(
+                                icon = {
+                                    Icon(
+                                        imageVector = screen.icon,
+                                        contentDescription = screen.title
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = screen.title,
+                                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                                        fontSize = 11.sp
+                                    )
+                                },
+                                selected = isSelected,
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = com.expensetracker.app.ui.theme.PrimaryGreen,
+                                    selectedTextColor = com.expensetracker.app.ui.theme.PrimaryGreen,
+                                    indicatorColor = com.expensetracker.app.ui.theme.PrimaryContainer,
+                                    unselectedIconColor = com.expensetracker.app.ui.theme.TextSecondary,
+                                    unselectedTextColor = com.expensetracker.app.ui.theme.TextSecondary
+                                ),
+                                onClick = {
+                                    if (currentRoute != screen.route) {
+                                        navController.navigate(screen.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

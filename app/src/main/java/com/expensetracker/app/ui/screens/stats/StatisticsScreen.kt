@@ -62,14 +62,14 @@ fun StatisticsScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Time Period Selector
+            // Time Period Selector (M3 Expressive Pill Segmented)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .height(46.dp)
+                    .clip(ExpressivePillShape)
                     .background(Color(0xFFF1F5F9))
-                    .padding(4.dp)
+                    .padding(3.dp)
             ) {
                 listOf(
                     TimePeriod.THIS_WEEK to "Tuần này",
@@ -81,14 +81,14 @@ fun StatisticsScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(ExpressivePillShape)
                             .background(if (isSelected) Color.White else Color.Transparent)
                             .clickable { viewModel.setPeriod(period) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = title,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) PrimaryGreenDark else Color(0xFF64748B),
                             fontSize = 13.sp
                         )
@@ -97,7 +97,7 @@ fun StatisticsScreen(
             }
         }
 
-        // Summary Cards: Expense vs Income
+        // Summary Cards: Expense vs Income (M3 Expressive Cards)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -106,17 +106,18 @@ fun StatisticsScreen(
                 // Expense
                 Card(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = ExpressiveCardShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    elevation = CardDefaults.cardElevation(1.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Tổng chi tiêu", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Tổng chi tiêu", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             CurrencyUtils.formatVnd(totalExpense),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = ExpenseRed
                         )
                     }
@@ -125,17 +126,18 @@ fun StatisticsScreen(
                 // Income
                 Card(
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = ExpressiveCardShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(1.dp)
+                    elevation = CardDefaults.cardElevation(1.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Tổng thu nhập", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Tổng thu nhập", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             CurrencyUtils.formatVnd(totalIncome),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = IncomeGreen
                         )
                     }
@@ -143,25 +145,26 @@ fun StatisticsScreen(
             }
         }
 
-        // Donut Chart Card
+        // Donut Chart Card (M3 Expressive Hero Card)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
+                shape = ExpressiveHeroShape,
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(1.dp)
+                elevation = CardDefaults.cardElevation(1.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Phân bổ chi tiêu",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.align(Alignment.Start)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     DonutPieChart(
                         slices = chartSlices,
@@ -208,36 +211,37 @@ fun StatisticsScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ExpressiveItemShape,
                     colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(0.5.dp)
+                    elevation = CardDefaults.cardElevation(1.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
+                                .size(42.dp)
+                                .clip(ExpressiveSquircleIconShape)
                                 .background(catColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             CategoryIcon(
                                 name = cat?.iconName ?: "Category",
                                 tint = catColor,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = cat?.name ?: "Khác",
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.height(4.dp))
@@ -245,25 +249,26 @@ fun StatisticsScreen(
                                 progress = { (percentage / 100f).coerceIn(0f, 1f) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(2.dp)),
+                                    .height(6.dp)
+                                    .clip(ExpressivePillShape),
                                 color = catColor,
                                 trackColor = Color(0xFFF1F5F9)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = CurrencyUtils.formatVnd(summary.totalAmount),
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp,
                                 color = TextPrimary
                             )
                             Text(
                                 text = "$percentage%",
                                 fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = Color(0xFF64748B)
                             )
                         }

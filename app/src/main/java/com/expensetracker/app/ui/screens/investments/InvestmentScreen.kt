@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,10 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.InvestmentEntity
 import com.expensetracker.app.data.local.entity.InvestmentType
-import com.expensetracker.app.ui.theme.ExpenseRed
-import com.expensetracker.app.ui.theme.IncomeGreen
-import com.expensetracker.app.ui.theme.PrimaryGreen
-import com.expensetracker.app.ui.theme.PrimaryGreenDark
+import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CurrencyUtils
 
@@ -53,13 +52,13 @@ fun InvestmentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Quản Lý Đầu Tư", fontWeight = FontWeight.Bold) },
+                title = { Text("Quản Lý Đầu Tư", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
             )
         },
         floatingActionButton = {
@@ -72,10 +71,12 @@ fun InvestmentScreen(
                     selectedType = InvestmentType.STOCK
                     showAddDialog = true
                 },
+                shape = RoundedCornerShape(20.dp),
                 containerColor = PrimaryGreen,
-                contentColor = Color.White
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(3.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm khoản đầu tư")
+                Icon(Icons.Default.Add, contentDescription = "Thêm khoản đầu tư", modifier = Modifier.size(28.dp))
             }
         }
     ) { paddingValues ->
@@ -88,61 +89,70 @@ fun InvestmentScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                // Portfolio Summary Card
+                // Portfolio Summary Card (M3 Expressive Hero Card)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = ExpressiveHeroShape,
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(Color(0xFF1E3A8A), Color(0xFF3B82F6))
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF3B82F6))
                                 )
                             )
-                            .padding(20.dp)
+                            .padding(22.dp)
                     ) {
                         Column {
                             Text(
                                 text = "Tổng giá trị danh mục đầu tư",
                                 color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 13.sp
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = CurrencyUtils.formatVnd(totalCurrentValue),
                                 color = Color.White,
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.displayLarge,
+                                fontWeight = FontWeight.ExtraBold
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
-                                    Text("Tổng vốn bỏ ra", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    Text("Tổng vốn bỏ ra", color = Color.White.copy(alpha = 0.82f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         CurrencyUtils.formatVnd(totalInvested),
                                         color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.sp
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
                                     )
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
-                                    Text("Lợi nhuận (Lời / Lỗ)", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    Text("Lợi nhuận (Lời / Lỗ)", color = Color.White.copy(alpha = 0.82f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     val isProfit = profitLoss >= 0
                                     val sign = if (isProfit) "+" else ""
-                                    Text(
-                                        "$sign${CurrencyUtils.formatVnd(profitLoss)} (${sign}${String.format("%.1f", profitPercentage)}%)",
-                                        color = if (isProfit) Color(0xFF86EFAC) else Color(0xFFFCA5A5),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
-                                    )
+                                    Surface(
+                                        shape = ExpressivePillShape,
+                                        color = if (isProfit) Color.White.copy(alpha = 0.2f) else Color(0xFFEF4444).copy(alpha = 0.35f)
+                                    ) {
+                                        Text(
+                                            "$sign${CurrencyUtils.formatVnd(profitLoss)} (${sign}${String.format("%.1f", profitPercentage)}%)",
+                                            color = if (isProfit) Color(0xFF86EFAC) else Color(0xFFFECDD3),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -150,7 +160,7 @@ fun InvestmentScreen(
                 }
             }
 
-            // AI Portfolio Analysis Button
+            // AI Portfolio Analysis Button (M3 Expressive Pill Button)
             if (investments.isNotEmpty()) {
                 item {
                     Button(
@@ -159,8 +169,10 @@ fun InvestmentScreen(
                                 onNavigateToAi()
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = ExpressivePillShape,
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreenDark)
                     ) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -220,14 +232,15 @@ fun InvestmentScreen(
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = ExpressiveItemShape,
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(1.dp)
+                        elevation = CardDefaults.cardElevation(1.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp),
+                                .padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val (typeLabel, typeColor) = when (inv.type) {
@@ -242,29 +255,29 @@ fun InvestmentScreen(
 
                             Box(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
+                                    .size(44.dp)
+                                    .clip(ExpressiveSquircleIconShape)
                                     .background(typeColor.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = typeColor, modifier = Modifier.size(22.dp))
+                                Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = typeColor, modifier = Modifier.size(22.dp))
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(14.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(inv.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(inv.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = typeColor.copy(alpha = 0.1f)
+                                        shape = ExpressivePillShape,
+                                        color = typeColor.copy(alpha = 0.12f)
                                     ) {
                                         Text(
                                             typeLabel,
                                             fontSize = 10.sp,
                                             color = typeColor,
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
                                     }
                                     if (inv.note.isNotBlank()) {
@@ -283,19 +296,19 @@ fun InvestmentScreen(
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     CurrencyUtils.formatVnd(inv.currentValue),
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.ExtraBold,
                                     fontSize = 15.sp
                                 )
                                 val sign = if (isProfit) "+" else ""
                                 Text(
                                     "$sign${String.format("%.1f", roi)}%",
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.ExtraBold,
                                     color = if (isProfit) IncomeGreen else ExpenseRed
                                 )
                                 IconButton(
                                     onClick = { viewModel.deleteInvestment(inv) },
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Xóa", tint = Color(0xFFCBD5E1), modifier = Modifier.size(16.dp))
                                 }
@@ -311,18 +324,20 @@ fun InvestmentScreen(
         }
     }
 
-    // Add Investment Dialog
+    // Add Investment Dialog (M3 Expressive Dialog)
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("Thêm Khoản Đầu Tư") },
+            shape = ExpressiveDialogShape,
+            title = { Text("Thêm Khoản Đầu Tư", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { nameInput = it },
                         label = { Text("Tên khoản đầu tư") },
                         placeholder = { Text("Ví dụ: Vàng nhẫn 9999, Cổ phiếu FPT, Quỹ DCDS...") },
+                        shape = ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -331,6 +346,7 @@ fun InvestmentScreen(
                         value = investedInput,
                         onValueChange = { investedInput = CurrencyUtils.formatInputAmount(it) },
                         label = { Text("Số vốn ban đầu (₫)") },
+                        shape = ExpressiveInputShape,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -340,15 +356,16 @@ fun InvestmentScreen(
                         value = currentValInput,
                         onValueChange = { currentValInput = CurrencyUtils.formatInputAmount(it) },
                         label = { Text("Giá trị hiện tại ước tính (₫)") },
+                        shape = ExpressiveInputShape,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Text("Loại hình đầu tư:", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Text("Loại hình đầu tư:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         listOf(
                             InvestmentType.GOLD to "Vàng",
@@ -359,7 +376,8 @@ fun InvestmentScreen(
                             FilterChip(
                                 selected = selectedType == t,
                                 onClick = { selectedType = t },
-                                label = { Text(label, fontSize = 11.sp) }
+                                shape = ExpressivePillShape,
+                                label = { Text(label, fontSize = 11.sp, fontWeight = if (selectedType == t) FontWeight.Bold else FontWeight.Normal) }
                             )
                         }
                     }
@@ -369,6 +387,7 @@ fun InvestmentScreen(
                         onValueChange = { noteInput = it },
                         label = { Text("Ghi chú") },
                         placeholder = { Text("Ví dụ: Mua ngày 15/10, tích lũy dài hạn...") },
+                        shape = ExpressiveInputShape,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -390,9 +409,10 @@ fun InvestmentScreen(
                             showAddDialog = false
                         }
                     },
+                    shape = ExpressivePillShape,
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
                 ) {
-                    Text("Thêm")
+                    Text("Thêm", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
