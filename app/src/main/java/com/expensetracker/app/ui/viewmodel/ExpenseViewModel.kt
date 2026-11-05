@@ -162,6 +162,23 @@ class ExpenseViewModel(
         }
     }
 
+    fun addPersonalSplitExpense(
+        amount: Double,
+        accountId: Long,
+        categoryId: String,
+        eventTitle: String
+    ) {
+        val titleNote = if (eventTitle.isNotBlank()) "Chia tiền: $eventTitle" else "Chia tiền nhóm cùng AI"
+        addTransaction(
+            amount = amount,
+            type = TransactionType.EXPENSE,
+            categoryId = categoryId,
+            accountId = accountId,
+            note = titleNote,
+            timestamp = System.currentTimeMillis()
+        )
+    }
+
     fun deleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)

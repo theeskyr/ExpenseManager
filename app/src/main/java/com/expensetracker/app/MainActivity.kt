@@ -49,6 +49,7 @@ import com.expensetracker.app.ui.screens.budget.BudgetScreen
 import com.expensetracker.app.ui.screens.home.HomeScreen
 import com.expensetracker.app.ui.screens.investments.InvestmentScreen
 import com.expensetracker.app.ui.screens.settings.SettingsScreen
+import com.expensetracker.app.ui.screens.splitbill.SplitBillScreen
 import com.expensetracker.app.ui.screens.stats.StatisticsScreen
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
@@ -61,6 +62,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Budget : Screen("budget", "Ngân sách", Icons.Default.Savings)
     object Investments : Screen("investments", "Đầu tư", Icons.Default.TrendingUp)
     object Accounts : Screen("accounts", "Ví tiền", Icons.Default.AccountBalanceWallet)
+    object SplitBill : Screen("split_bill", "Chia tiền", Icons.Default.Groups)
     object Settings : Screen("settings", "Cài đặt", Icons.Default.Settings)
     object AddTransaction : Screen("add_transaction", "Thêm", Icons.Default.Add)
 }
@@ -143,8 +145,11 @@ fun MainAppNavHost(
 
     Scaffold(
         bottomBar = {
-            // Hide bottom bar when in AddTransaction screen or Investments or Accounts
-            if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.Investments.route && currentRoute != Screen.Accounts.route) {
+            // Hide bottom bar when in AddTransaction screen, Investments, Accounts, or SplitBill
+            if (currentRoute != Screen.AddTransaction.route && 
+                currentRoute != Screen.Investments.route && 
+                currentRoute != Screen.Accounts.route &&
+                currentRoute != Screen.SplitBill.route) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -262,6 +267,9 @@ fun MainAppNavHost(
                     },
                     onNavigateToAccounts = {
                         navController.navigate(Screen.Accounts.route)
+                    },
+                    onNavigateToSplitBill = {
+                        navController.navigate(Screen.SplitBill.route)
                     }
                 )
             }
@@ -320,6 +328,27 @@ fun MainAppNavHost(
                     initialNote = initialNote,
                     onNavigateBack = {
                         navController.popBackStack()
+                    }
+                )
+            }
+            composable(Screen.SplitBill.route) {
+                SplitBillScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.findStartDestination().id)
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    onNavigateToHome = {
+                        if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.findStartDestination().id)
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 )
             }

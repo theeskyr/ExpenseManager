@@ -53,7 +53,8 @@ fun HomeScreen(
     onNavigateToAdd: () -> Unit,
     onNavigateToAi: () -> Unit = {},
     onNavigateToInvestments: () -> Unit = {},
-    onNavigateToAccounts: () -> Unit = {}
+    onNavigateToAccounts: () -> Unit = {},
+    onNavigateToSplitBill: () -> Unit = {}
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState()
     val reserveBalance by viewModel.reserveBalance.collectAsState()
@@ -228,6 +229,87 @@ fun HomeScreen(
                                 Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E40AF))
                                 Text("Vàng, Cổ phiếu...", fontSize = 11.sp, color = Color(0xFF2563EB))
                             }
+                        }
+                    }
+                }
+            }
+
+            // AI Bill Splitting Banner (Không gian chia tiền nhóm cùng AI)
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ExpressiveCardShape)
+                        .clickable { onNavigateToSplitBill() },
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF4338CA), Color(0xFF6D28D9), Color(0xFF9333EA))
+                                )
+                            )
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(ExpressiveSquircleIconShape)
+                                    .background(Color.White.copy(alpha = 0.22f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Groups,
+                                    contentDescription = "Chia tiền",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = ExpressivePillShape,
+                                        color = Color.White.copy(alpha = 0.22f)
+                                    ) {
+                                        Text(
+                                            "⚡ TÍNH NĂNG MỚI • AI",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    "Chia tiền nhóm cùng AI",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Tính ai nợ ai sòng phẳng & tự lưu chi tiêu cá nhân",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.88f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
                 }

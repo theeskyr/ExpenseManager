@@ -3,6 +3,8 @@ package com.expensetracker.app.data.ai
 import android.content.Context
 import android.graphics.Bitmap
 import com.expensetracker.app.data.local.entity.TransactionType
+import com.expensetracker.app.data.model.ScannedReceiptItem
+import com.expensetracker.app.utils.CurrencyUtils
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
@@ -200,6 +202,112 @@ class GeminiManager(context: Context) {
                 )
             }
         }
+
+    suspend fun analyzeSplitBillWithAi(
+        eventTitle: String,
+        totalAmount: Double,
+        perPersonAvg: Double,
+        myShare: Double,
+        itemsBreakdown: String,
+        settlementsBreakdown: String
+    ): Triple<String, String, String> = withContext(Dispatchers.IO) {
+        try {
+            if (!hasApiKey()) {
+                val fallbackSummary = "Buổi '${eventTitle}' có tổng chi tiêu là ${CurrencyUtils.formatVnd(totalAmount)}, chia đều mỗi người ${CurrencyUtils.formatVnd(perPersonAvg)}."
+                val fallbackMessage = "Tiền '${eventTitle}':\n- Tổng: ${CurrencyUtils.formatVnd(totalAmount)} (chia ${CurrencyUtils.formatVnd(perPersonAvg)}/người)\n${settlementsBreakdown}\nMọi người kiểm tra và thanh toán sòng phẳng nhé!"
+                val fallbackAdvice = "Chia tiền ngay sau khi đi chơi giúp tài chính minh bạch và gắn kết tình bạn bền chặt!"
+                return@withContext Triple(fallbackSummary, fallbackMessage, fallbackAdvice)
+            }
+
+            val prompt = """
+                Bạn là Trợ lý AI tài chính cá nhân thông minh và vui tính cho ứng dụng quản lý chi tiêu của người Việt Nam.
+                Người dùng vừa tổ chức một buổi chi tiêu nhóm:
+                - Tên sự kiện: $eventTitle
+                - Tổng chi phí: $totalAmount VNĐ
+                - Chi phí trung bình mỗi người: $perPersonAvg VNĐ
+                - Phần chi phí của 'Tôi' (người dùng): $myShare VNĐ
+                - Chi tiết các khoản chi đã thanh toán:
+                $itemsBreakdown
+                - Ma trận thanh toán nợ ('ai cần chuyển cho ai'):
+                $settlementsBreakdown
+
+                Nhiệm vụ của bạn:
+                Trả về JSON có đúng cấu trúc sau:
+                {
+                  "summary": "Lời tóm tắt súc tích, dí dỏm bằng tiếng Việt về buổi ăn chơi và kết quả phân chia tiền.",
+                  "suggestedMessage": "Mẫu tin nhắn ngắn gọn, thân thiện và sòng phẳng để copy gửi vào nhóm chat Zalo/Messenger (kèm nhắc STK và lời nhắn nhẹ nhàng vui vẻ).",
+                  "aiAdvice": "1 lời khuyên tài chính thông minh hoặc mẹo tiết kiệm khi đi chơi nhóm."
+                }
+            """.trimIndent()
+
+            val response = getModel().generateContent(prompt)
+            val jsonString = response.text ?: ""
+            val clean = cleanJsonString(jsonString)
+            val json = JSONObject(clean)
+            val summary = json.optString("summary", "Tổng chi phí là ${CurrencyUtils.formatVnd(totalAmount)}, chia đều ${CurrencyUtils.formatVnd(perPersonAvg)}/người.")
+            val suggestedMessage = json.optString("suggestedMessage", "Tổng tiền ${eventTitle}: ${CurrencyUtils.formatVnd(totalAmount)}.\n$settlementsBreakdown")
+            val aiAdvice = json.optString("aiAdvice", "Thanh toán sòng phẳng, tình bạn bền lâu!")
+            Triple(summary, suggestedMessage, aiAdvice)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            val fallbackSummary = "Buổi '${eventTitle}' có tổng chi tiêu là ${CurrencyUtils.formatVnd(totalAmount)}, chia đều mỗi người ${CurrencyUtils.formatVnd(perPersonAvg)}."
+            val fallbackMessage = "Tiền '${eventTitle}':\n- Tổng: ${CurrencyUtils.formatVnd(totalAmount)} (chia ${CurrencyUtils.formatVnd(perPersonAvg)}/người)\n${settlementsBreakdown}\nMọi người kiểm tra và thanh toán sòng phẳng nhé!"
+            val fallbackAdvice = "Chia tiền sòng phẳng giúp nhóm luôn thoải mái và vui vẻ trong các chuyến đi sau!"
+            Triple(fallbackSummary, fallbackMessage, fallbackAdvice)
+        }
+    }
+
+    suspend fun parseReceiptForSplitBill(bitmap: Bitmap): List<ScannedReceiptItem> = withContext(Dispatchers.IO) {
+        try {
+            if (!hasApiKey()) return@withContext emptyList()
+
+            val prompt = """
+                Bạn là Trợ lý AI OCR chuyên trích xuất hóa đơn ăn uống, nhà hàng, cafe, siêu thị của người Việt Nam.
+                Hãy đọc kỹ hình ảnh hóa đơn / biên lai này và trích xuất danh sách tất cả các món ăn, đồ uống hoặc dịch vụ lẻ (kèm số lượng và thành tiền thực tế).
+                Quy tắc bắt buộc:
+                1. Bỏ qua dòng TỔNG CỘNG, TOTAL, TIỀN THỐI, TIỀN KHÁCH ĐƯA.
+                2. Nếu có phí dịch vụ hoặc VAT riêng biệt, có thể ghi nhận như một mục lẻ (ví dụ: 'Phí VAT 8%').
+                3. Tên món lấy nguyên văn rõ ràng (ví dụ: 'Trà đào cam sả', 'Bò nướng tảng', 'Khăn lạnh').
+                4. Số lượng (quantity) là số nguyên dương (ví dụ 1, 2, 3). Nếu không ghi rõ số lượng thì mặc định là 1.
+                5. Thành tiền (amount) là tổng số tiền của dòng món đó (Double / Long không có dấu chấm phẩy, ví dụ đơn giá 30000 x 2 = 60000).
+                6. Trả về đúng định dạng JSON có cấu trúc sau:
+                {
+                  "items": [
+                    {
+                      "name": "Tên món ăn hoặc đồ uống",
+                      "quantity": 1,
+                      "amount": 45000
+                    }
+                  ]
+                }
+            """.trimIndent()
+
+            val inputContent = content {
+                image(bitmap)
+                text(prompt)
+            }
+
+            val response = getModel().generateContent(inputContent)
+            val jsonString = response.text ?: ""
+            val clean = cleanJsonString(jsonString)
+            val json = JSONObject(clean)
+            val arr = json.optJSONArray("items") ?: JSONArray()
+            val list = mutableListOf<ScannedReceiptItem>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                val name = obj.optString("name", "").trim()
+                val quantity = obj.optInt("quantity", 1).coerceAtLeast(1)
+                val amount = obj.optDouble("amount", 0.0)
+                if (name.isNotBlank() && amount > 0.0) {
+                    list.add(ScannedReceiptItem(name = name, quantity = quantity, amount = amount))
+                }
+            }
+            list
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 
     private fun parseAiJson(jsonString: String): AiResponse {
         val clean = cleanJsonString(jsonString)
