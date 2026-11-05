@@ -26,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -135,13 +136,15 @@ fun MainAppNavHost(
         }
     }
 
-    val bottomNavItems = listOf(
-        Screen.Home,
-        Screen.Stats,
-        Screen.AiAssistant,
-        Screen.Budget,
-        Screen.Settings
-    )
+    val bottomNavItems = remember {
+        listOf(
+            Screen.Home,
+            Screen.Stats,
+            Screen.AiAssistant,
+            Screen.Budget,
+            Screen.Settings
+        )
+    }
 
     Scaffold(
         bottomBar = {
@@ -159,12 +162,10 @@ fun MainAppNavHost(
                 ) {
                     Surface(
                         shape = ExpressivePillShape,
-                        shadowElevation = 10.dp,
+                        shadowElevation = 2.dp,
                         color = Color.White,
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ExpressivePillShape)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier

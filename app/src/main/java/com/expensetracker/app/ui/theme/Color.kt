@@ -61,10 +61,14 @@ val CatBonus = Color(0xFF65A30D)
 val CatInvestment = Color(0xFF0284C7)
 val CatSavings = Color(0xFFD97706)
 
+private val colorCache = java.util.concurrent.ConcurrentHashMap<String, Color>()
+
 fun parseColor(hex: String): Color {
-    return try {
-        Color(android.graphics.Color.parseColor(hex))
-    } catch (e: Exception) {
-        PrimaryGreen
+    return colorCache.getOrPut(hex) {
+        try {
+            Color(android.graphics.Color.parseColor(hex))
+        } catch (e: Exception) {
+            PrimaryGreen
+        }
     }
 }
