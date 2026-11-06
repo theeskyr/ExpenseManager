@@ -49,6 +49,7 @@ data class TripSplitData(
     val items: List<SplitExpenseItem>
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ExpenseViewModel(
     private val repository: ExpenseRepository,
     val geminiManager: GeminiManager
@@ -130,7 +131,6 @@ class ExpenseViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     private fun getRangeForPeriod(period: TimePeriod): Pair<Long, Long> {
-        val now = System.currentTimeMillis()
         return when (period) {
             TimePeriod.THIS_WEEK -> Pair(DateUtils.getStartOfWeek(), DateUtils.getEndOfWeek())
             TimePeriod.THIS_MONTH -> Pair(

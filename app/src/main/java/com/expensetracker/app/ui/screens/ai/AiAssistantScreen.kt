@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -65,7 +66,6 @@ fun AiAssistantScreen(
     onNavigateBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val chatMessages by viewModel.chatMessages.collectAsState()
     val isLoading by viewModel.isAiLoading.collectAsState()
     val apiKey by viewModel.geminiApiKey.collectAsState()
@@ -484,7 +484,7 @@ fun AiAssistantScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                Icons.Default.Send,
+                                Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "Gửi",
                                 tint = if (canSend) Color.White else Color(0xFF94A3B8),
                                 modifier = Modifier.size(18.dp)

@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1171,7 +1172,7 @@ fun SplitBillScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(18.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             "Ai chuyển cho ai? (${res.settlements.size} giao dịch)",
@@ -1631,7 +1632,7 @@ fun SplitBillScreen(
             onDismissRequest = { showSourceSheet = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9))
+                    Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Quét hóa đơn bằng AI", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
@@ -1734,9 +1735,9 @@ fun SplitBillScreen(
             onConfirm = { updatedItems, billPayerId ->
                 val newSplitItems = updatedItems.map { item ->
                     val sharers = if (item.assignedMemberIds.isEmpty()) members.map { it.id } else item.assignedMemberIds.toList()
-                    val itemTitle = if (item.quantity > 1) "${item.name} (x${item.quantity})" else item.name
+                    val formattedTitle = if (item.quantity > 1) "${item.name} (x${item.quantity})" else item.name
                     SplitExpenseItem(
-                        title = itemTitle,
+                        title = formattedTitle,
                         amount = item.amount,
                         paidByMemberId = billPayerId,
                         splitAmongMemberIds = sharers
@@ -1856,7 +1857,7 @@ fun AssignBillItemsDialog(
                             .background(Color(0xFFEDE9FE)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {

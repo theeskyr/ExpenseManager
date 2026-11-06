@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -67,7 +68,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Stats : Screen("stats", "Thống kê", Icons.Default.PieChart)
     object AiAssistant : Screen("ai_assistant", "Trợ lý AI", Icons.Default.SmartToy)
     object Budget : Screen("budget", "Ngân sách", Icons.Default.Savings)
-    object Investments : Screen("investments", "Đầu tư", Icons.Default.TrendingUp)
+    object Investments : Screen("investments", "Đầu tư", Icons.AutoMirrored.Filled.TrendingUp)
     object Accounts : Screen("accounts", "Ví tiền", Icons.Default.AccountBalanceWallet)
     object SplitBill : Screen("split_bill", "Chia tiền", Icons.Default.Groups)
     object Trips : Screen("trips", "Chuyến đi", Icons.Default.Luggage)
