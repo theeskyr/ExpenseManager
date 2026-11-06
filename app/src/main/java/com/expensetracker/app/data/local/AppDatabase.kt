@@ -10,6 +10,7 @@ import com.expensetracker.app.data.local.dao.BudgetDao
 import com.expensetracker.app.data.local.dao.CategoryDao
 import com.expensetracker.app.data.local.dao.InvestmentDao
 import com.expensetracker.app.data.local.dao.TransactionDao
+import com.expensetracker.app.data.local.dao.TripDao
 import com.expensetracker.app.data.local.entity.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +22,11 @@ import kotlinx.coroutines.launch
         CategoryEntity::class,
         AccountEntity::class,
         BudgetEntity::class,
-        InvestmentEntity::class
+        InvestmentEntity::class,
+        TripEntity::class,
+        TripExpenseEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun budgetDao(): BudgetDao
     abstract fun investmentDao(): InvestmentDao
+    abstract fun tripDao(): TripDao
 
     companion object {
         @Volatile

@@ -72,6 +72,7 @@ fun SplitBillScreen(
 
     val accounts by viewModel.allAccounts.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
+    val activeTripData by viewModel.activeTripForSplit.collectAsState()
 
     // Form states
     var eventTitle by remember { mutableStateOf("Bữa ăn nhóm cuối tuần") }
@@ -95,6 +96,19 @@ fun SplitBillScreen(
     var selectedPayerId by remember { mutableStateOf(defaultMe.id) }
     var selectedSharerIds by remember { mutableStateOf(members.map { it.id }.toSet()) }
 
+    // Tự động nạp toàn bộ thông tin từ Chuyến đi (nếu đến từ tính năng Tính toán chuyến đi)
+    LaunchedEffect(activeTripData) {
+        activeTripData?.let { data ->
+            eventTitle = data.eventTitle
+            members = data.members
+            expenseItems = data.items
+            if (data.members.isNotEmpty()) {
+                selectedPayerId = data.members.first().id
+                selectedSharerIds = data.members.map { it.id }.toSet()
+            }
+        }
+    }
+
     // Synchronize selectedSharerIds when members change
     LaunchedEffect(members) {
         val currentMemberIds = members.map { it.id }.toSet()
@@ -107,6 +121,23 @@ fun SplitBillScreen(
     // Calculation result
     var result by remember { mutableStateOf<SplitBillResult?>(null) }
     var isCalculatingAi by remember { mutableStateOf(false) }
+
+    // Khi chia tiền xong, nếu dữ liệu đến từ Chuyến đi, tự động lưu kết quả chia nợ vào chuyến đi để xem lại sau này
+    LaunchedEffect(result) {
+        val currentTrip = activeTripData
+        val currentRes = result
+        if (currentTrip != null && currentRes != null) {
+            val settlementLines = if (currentRes.settlements.isEmpty()) {
+                "Tất cả thành viên đã sòng phẳng, không ai nợ ai!"
+            } else {
+                currentRes.settlements.joinToString("\n") { s ->
+                    "• ${s.fromMemberName} ➜ chuyển ${s.toMemberName}: ${CurrencyUtils.formatVnd(s.amount)}"
+                }
+            }
+            val fullSummary = "Tổng chi phí chuyến đi: ${CurrencyUtils.formatVnd(currentRes.totalAmount)} (${currentTrip.members.size} người)\n$settlementLines"
+            viewModel.markTripCompleted(currentTrip.tripId, fullSummary)
+        }
+    }
 
     // Personal expense save state
     var selectedAccountId by remember { mutableStateOf<Long?>(null) }

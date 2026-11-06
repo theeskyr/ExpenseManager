@@ -58,7 +58,8 @@ fun HomeScreen(
     onNavigateToAi: () -> Unit = {},
     onNavigateToInvestments: () -> Unit = {},
     onNavigateToAccounts: () -> Unit = {},
-    onNavigateToSplitBill: () -> Unit = {}
+    onNavigateToSplitBill: () -> Unit = {},
+    onNavigateToTrips: () -> Unit = {}
 ) {
     val totalBalance by viewModel.totalBalance.collectAsState()
     val reserveBalance by viewModel.reserveBalance.collectAsState()
@@ -69,6 +70,7 @@ fun HomeScreen(
     val transactions by viewModel.allTransactions.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
     val accounts by viewModel.allAccounts.collectAsState()
+    val allTrips by viewModel.allTrips.collectAsState()
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
     val accountMap = remember(accounts) { accounts.associateBy { it.id } }
@@ -201,6 +203,8 @@ fun HomeScreen(
                         onNavigateToAi = onNavigateToAi,
                         onNavigateToInvestments = onNavigateToInvestments,
                         onNavigateToSplitBill = onNavigateToSplitBill,
+                        onNavigateToTrips = onNavigateToTrips,
+                        allTrips = allTrips,
                         onNavigateToAccounts = onNavigateToAccounts,
                         onSelectAccountForDetail = { selectedAccountForDetail = it }
                     )
@@ -295,6 +299,8 @@ fun HomeScreen(
                             onNavigateToAi = onNavigateToAi,
                             onNavigateToInvestments = onNavigateToInvestments,
                             onNavigateToSplitBill = onNavigateToSplitBill,
+                            onNavigateToTrips = onNavigateToTrips,
+                            allTrips = allTrips,
                             onNavigateToAccounts = onNavigateToAccounts,
                             onSelectAccountForDetail = { selectedAccountForDetail = it }
                         )
@@ -394,6 +400,8 @@ private fun HomeOverviewSection(
     onNavigateToAi: () -> Unit,
     onNavigateToInvestments: () -> Unit,
     onNavigateToSplitBill: () -> Unit,
+    onNavigateToTrips: () -> Unit = {},
+    allTrips: List<com.expensetracker.app.data.local.entity.TripEntity> = emptyList(),
     onNavigateToAccounts: () -> Unit,
     onSelectAccountForDetail: (AccountEntity) -> Unit
 ) {
@@ -467,6 +475,79 @@ private fun HomeOverviewSection(
                     Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E40AF))
                     Text("Vàng, Cổ phiếu...", fontSize = 11.sp, color = Color(0xFF2563EB))
                 }
+            }
+        }
+
+        // Tính toán chuyến đi Banner (Trip Calculator)
+        val ongoingTrip = remember(allTrips) { allTrips.firstOrNull { it.isOngoing } }
+        val tripBannerGradient = remember {
+            Brush.linearGradient(
+                colors = listOf(Color(0xFF0284C7), Color(0xFF0D9488), Color(0xFF10B981))
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(tripBannerGradient, ExpressiveCardShape)
+                .clip(ExpressiveCardShape)
+                .clickable { onNavigateToTrips() }
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color.White.copy(alpha = 0.22f), ExpressiveSquircleIconShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Luggage,
+                        contentDescription = "Chuyến đi",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = ExpressivePillShape,
+                            color = Color.White.copy(alpha = 0.22f)
+                        ) {
+                            Text(
+                                if (ongoingTrip != null) "🟢 ĐANG DIỄN RA" else "✈️ TÍNH TOÁN CHUYẾN ĐI",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        if (ongoingTrip != null) ongoingTrip.title else "Tính toán chuyến đi",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        if (ongoingTrip != null) "Đã chi ${CurrencyUtils.formatVnd(ongoingTrip.totalExpense)} • Chạm để tiếp tục nhập liệu" else "Nhập chi tiêu cả nhóm từng ngày & chia tiền AI khi kết thúc",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.88f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
 

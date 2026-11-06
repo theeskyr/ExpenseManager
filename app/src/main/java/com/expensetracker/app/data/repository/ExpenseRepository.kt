@@ -6,6 +6,7 @@ import com.expensetracker.app.data.local.dao.CategoryDao
 import com.expensetracker.app.data.local.dao.CategorySummary
 import com.expensetracker.app.data.local.dao.InvestmentDao
 import com.expensetracker.app.data.local.dao.TransactionDao
+import com.expensetracker.app.data.local.dao.TripDao
 import com.expensetracker.app.data.local.entity.*
 import kotlinx.coroutines.flow.Flow
 
@@ -14,7 +15,8 @@ class ExpenseRepository(
     private val categoryDao: CategoryDao,
     private val accountDao: AccountDao,
     private val budgetDao: BudgetDao,
-    private val investmentDao: InvestmentDao
+    private val investmentDao: InvestmentDao,
+    private val tripDao: TripDao
 ) {
     // Transactions
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
@@ -113,4 +115,21 @@ class ExpenseRepository(
     suspend fun deleteAllData() {
         transactionDao.deleteAllTransactions()
     }
+
+    // Trips & Group Travel Calculations
+    val allTrips: Flow<List<TripEntity>> = tripDao.getAllTrips()
+    fun getTripByIdFlow(tripId: String): Flow<TripEntity?> = tripDao.getTripByIdFlow(tripId)
+    suspend fun getTripById(tripId: String): TripEntity? = tripDao.getTripById(tripId)
+    fun getExpensesForTrip(tripId: String): Flow<List<TripExpenseEntity>> = tripDao.getExpensesForTrip(tripId)
+
+    suspend fun insertTrip(trip: TripEntity) = tripDao.insertTrip(trip)
+    suspend fun updateTrip(trip: TripEntity) = tripDao.updateTrip(trip)
+    suspend fun deleteTrip(trip: TripEntity) {
+        tripDao.deleteExpensesForTrip(trip.id)
+        tripDao.deleteTrip(trip)
+    }
+
+    suspend fun insertTripExpense(expense: TripExpenseEntity) = tripDao.insertExpense(expense)
+    suspend fun updateTripExpense(expense: TripExpenseEntity) = tripDao.updateExpense(expense)
+    suspend fun deleteTripExpense(expense: TripExpenseEntity) = tripDao.deleteExpense(expense)
 }

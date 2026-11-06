@@ -39,10 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.expensetracker.app.ui.screens.trips.TripsScreen
+import com.expensetracker.app.ui.screens.trips.TripDetailScreen
 import com.expensetracker.app.data.local.entity.TransactionType
 import com.expensetracker.app.data.service.BankNotificationListenerService
 import com.expensetracker.app.ui.screens.accounts.AccountsScreen
@@ -66,6 +70,10 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Investments : Screen("investments", "Đầu tư", Icons.Default.TrendingUp)
     object Accounts : Screen("accounts", "Ví tiền", Icons.Default.AccountBalanceWallet)
     object SplitBill : Screen("split_bill", "Chia tiền", Icons.Default.Groups)
+    object Trips : Screen("trips", "Chuyến đi", Icons.Default.Luggage)
+    object TripDetail : Screen("trip_detail/{tripId}", "Chi tiết chuyến đi", Icons.Default.Luggage) {
+        fun createRoute(tripId: String) = "trip_detail/$tripId"
+    }
     object Settings : Screen("settings", "Cài đặt", Icons.Default.Settings)
     object AddTransaction : Screen("add_transaction", "Thêm", Icons.Default.Add)
 }
@@ -154,7 +162,9 @@ fun MainAppNavHost(
     val showNavigation = currentRoute != Screen.AddTransaction.route && 
                          currentRoute != Screen.Investments.route && 
                          currentRoute != Screen.Accounts.route &&
-                         currentRoute != Screen.SplitBill.route
+                         currentRoute != Screen.SplitBill.route &&
+                         currentRoute != Screen.Trips.route &&
+                         currentRoute?.startsWith("trip_detail") != true
 
     CompositionLocalProvider(LocalWindowSizeInfo provides windowSizeInfo) {
         Scaffold(
@@ -309,6 +319,9 @@ fun MainAppNavHost(
                     },
                     onNavigateToSplitBill = {
                         navController.navigate(Screen.SplitBill.route)
+                    },
+                    onNavigateToTrips = {
+                        navController.navigate(Screen.Trips.route)
                     }
                 )
             }
@@ -388,6 +401,38 @@ fun MainAppNavHost(
                                 launchSingleTop = true
                             }
                         }
+                    }
+                )
+            }
+            composable(Screen.Trips.route) {
+                TripsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(navController.graph.findStartDestination().id)
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    onNavigateToTripDetail = { tripId ->
+                        navController.navigate(Screen.TripDetail.createRoute(tripId))
+                    }
+                )
+            }
+            composable(
+                route = Screen.TripDetail.route,
+                arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
+                TripDetailScreen(
+                    tripId = tripId,
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onNavigateToSplitBill = {
+                        navController.navigate(Screen.SplitBill.route)
                     }
                 )
             }

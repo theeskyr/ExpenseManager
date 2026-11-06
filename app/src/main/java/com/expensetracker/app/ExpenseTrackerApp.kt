@@ -17,7 +17,8 @@ class ExpenseTrackerApp : Application() {
             categoryDao = database.categoryDao(),
             accountDao = database.accountDao(),
             budgetDao = database.budgetDao(),
-            investmentDao = database.investmentDao()
+            investmentDao = database.investmentDao(),
+            tripDao = database.tripDao()
         )
     }
 }
