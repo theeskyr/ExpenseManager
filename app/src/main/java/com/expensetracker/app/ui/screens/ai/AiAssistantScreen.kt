@@ -41,10 +41,17 @@ import com.expensetracker.app.ui.viewmodel.ChatMessage
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.ui.viewmodel.MessageSender
 import com.expensetracker.app.utils.CurrencyUtils
+import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.ArrowBack
@@ -99,6 +106,87 @@ fun AiAssistantScreen(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    // Google Speech Recognition Launcher
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) {
+                inputText = if (inputText.isBlank()) {
+                    spokenText
+                } else {
+                    "${inputText.trim()} $spokenText"
+                }
+            }
+        }
+    }
+
+    fun launchGoogleVoiceInput() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "vi-VN")
+                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "vi-VN")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Đang lắng nghe... Hãy nói nội dung chi tiêu hoặc câu hỏi")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+
+                // Ưu tiên gọi trực tiếp engine nhận diện giọng nói của Google để có độ chính xác cao nhất
+                val googleCandidates = listOf(
+                    "com.google.android.tts",
+                    "com.google.android.googlequicksearchbox"
+                )
+                for (pkg in googleCandidates) {
+                    val testIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).setPackage(pkg)
+                    if (testIntent.resolveActivity(context.packageManager) != null) {
+                        setPackage(pkg)
+                        break
+                    }
+                }
+            }
+            speechRecognizerLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                val fallbackIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Đang lắng nghe...")
+                }
+                speechRecognizerLauncher.launch(fallbackIntent)
+            } catch (ex: Exception) {
+                Toast.makeText(context, "Thiết bị không hỗ trợ nhận diện giọng nói", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Lỗi giọng nói: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchGoogleVoiceInput()
+        } else {
+            Toast.makeText(context, "Cần cấp quyền Micro để nhận diện giọng nói", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val handleVoiceInputClick = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            launchGoogleVoiceInput()
+        } else {
+            recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -274,7 +362,7 @@ fun AiAssistantScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Attachment button for Receipt / Screenshot
@@ -283,15 +371,18 @@ fun AiAssistantScreen(
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
-                        }
+                        },
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.AddPhotoAlternate,
                             contentDescription = "Đính kèm hóa đơn",
                             tint = PrimaryGreen,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(4.dp))
 
                     // Text Field
                     OutlinedTextField(
@@ -299,14 +390,31 @@ fun AiAssistantScreen(
                         onValueChange = { inputText = it },
                         placeholder = {
                             Text(
-                                "Nhắn chi tiêu (VD: vừa ăn phở 55k)...",
+                                "Nhắn hoặc bấm micro để nói...",
                                 fontSize = 13.sp,
-                                color = Color(0xFF94A3B8)
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(24.dp),
                         singleLine = true,
+                        trailingIcon = if (inputText.isNotBlank()) {
+                            {
+                                IconButton(
+                                    onClick = { inputText = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Clear,
+                                        contentDescription = "Xóa chữ",
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        } else null,
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedContainerColor = Color(0xFFF8FAFC),
                             focusedContainerColor = Color.White,
@@ -329,6 +437,29 @@ fun AiAssistantScreen(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
+                    // Google Voice Input Button (Microphone)
+                    IconButton(
+                        onClick = handleVoiceInputClick,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEFF6FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Nhận diện giọng nói Google",
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     // Send Button
                     val canSend = (inputText.isNotBlank() || selectedBitmap != null) && !isLoading
                     IconButton(
@@ -342,11 +473,12 @@ fun AiAssistantScreen(
                                 inputText = ""
                             }
                         },
-                        enabled = canSend
+                        enabled = canSend,
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .background(if (canSend) PrimaryGreen else Color(0xFFE2E8F0)),
                             contentAlignment = Alignment.Center
@@ -355,7 +487,7 @@ fun AiAssistantScreen(
                                 Icons.Default.Send,
                                 contentDescription = "Gửi",
                                 tint = if (canSend) Color.White else Color(0xFF94A3B8),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }

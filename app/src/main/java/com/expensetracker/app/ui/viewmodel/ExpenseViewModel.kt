@@ -58,10 +58,10 @@ class ExpenseViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allCategories: StateFlow<List<CategoryEntity>> = repository.allCategories
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val allAccounts: StateFlow<List<AccountEntity>> = repository.allAccounts
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val totalBalance: StateFlow<Double> = repository.totalBalance
         .map { it ?: 0.0 }
@@ -359,21 +359,29 @@ class ExpenseViewModel(
 
         viewModelScope.launch {
             _isAiLoading.value = true
-            val spendingContext = "Chi tháng này: ${currentMonthExpense.value} ₫, Thu tháng này: ${currentMonthIncome.value} ₫"
-            val response = geminiManager.processTextMessage(text, spendingContext)
+            try {
+                val spendingContext = "Chi tháng này: ${currentMonthExpense.value} ₫, Thu tháng này: ${currentMonthIncome.value} ₫"
+                val response = geminiManager.processTextMessage(text, spendingContext)
 
-            // Auto add all transactions if detected
-            response.detectedTransactions.forEachIndexed { index, txData ->
-                autoSaveAiTransaction(txData, offsetMs = index * 20L)
+                // Auto add all transactions if detected
+                response.detectedTransactions.forEachIndexed { index, txData ->
+                    autoSaveAiTransaction(txData, offsetMs = index * 20L)
+                }
+
+                val aiMsg = ChatMessage(
+                    sender = MessageSender.AI,
+                    text = response.replyText,
+                    transactions = response.detectedTransactions
+                )
+                _chatMessages.value = _chatMessages.value + aiMsg
+            } catch (e: Exception) {
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.AI,
+                    text = "Xin lỗi, đã xảy ra lỗi trong quá trình xử lý: ${e.localizedMessage ?: e.message}"
+                )
+            } finally {
+                _isAiLoading.value = false
             }
-
-            val aiMsg = ChatMessage(
-                sender = MessageSender.AI,
-                text = response.replyText,
-                transactions = response.detectedTransactions
-            )
-            _chatMessages.value = _chatMessages.value + aiMsg
-            _isAiLoading.value = false
         }
     }
 
@@ -387,73 +395,98 @@ class ExpenseViewModel(
 
         viewModelScope.launch {
             _isAiLoading.value = true
-            val response = geminiManager.processReceiptImage(bitmap, userPrompt)
+            try {
+                val response = geminiManager.processReceiptImage(bitmap, userPrompt)
 
-            // Auto add all transactions if detected
-            response.detectedTransactions.forEachIndexed { index, txData ->
-                autoSaveAiTransaction(txData, offsetMs = index * 20L)
+                // Auto add all transactions if detected
+                response.detectedTransactions.forEachIndexed { index, txData ->
+                    autoSaveAiTransaction(txData, offsetMs = index * 20L)
+                }
+
+                val aiMsg = ChatMessage(
+                    sender = MessageSender.AI,
+                    text = response.replyText,
+                    transactions = response.detectedTransactions
+                )
+                _chatMessages.value = _chatMessages.value + aiMsg
+            } catch (e: Exception) {
+                _chatMessages.value = _chatMessages.value + ChatMessage(
+                    sender = MessageSender.AI,
+                    text = "Xin lỗi, đã xảy ra lỗi trong quá trình xử lý: ${e.localizedMessage ?: e.message}"
+                )
+            } finally {
+                _isAiLoading.value = false
             }
-
-            val aiMsg = ChatMessage(
-                sender = MessageSender.AI,
-                text = response.replyText,
-                transactions = response.detectedTransactions
-            )
-            _chatMessages.value = _chatMessages.value + aiMsg
-            _isAiLoading.value = false
         }
     }
 
     private suspend fun autoSaveAiTransaction(txData: AiTransactionData, offsetMs: Long = 0L) {
         if (txData.amount <= 0.0) return
-        val currentAccounts = allAccounts.value
+        try {
+            // Lấy danh sách tài khoản hiện có trực tiếp từ DB
+            val accountsList = repository.allAccounts.first().ifEmpty {
+                val defaultAccount = AccountEntity(
+                    id = 1,
+                    name = "Tiền mặt",
+                    type = AccountType.CASH,
+                    initialBalance = 0.0,
+                    currentBalance = 0.0,
+                    colorHex = "#4CAF50",
+                    iconName = "Payments"
+                )
+                repository.insertAccount(defaultAccount)
+                listOf(defaultAccount)
+            }
 
-        // Priority 1: Match account name directly
-        val matchedByName = txData.suggestedAccountName?.let { accName ->
-            currentAccounts.firstOrNull { it.name.contains(accName, ignoreCase = true) }
-        }
+            // Priority 1: Match account name directly
+            val matchedByName = txData.suggestedAccountName?.let { accName ->
+                accountsList.firstOrNull { it.name.contains(accName, ignoreCase = true) }
+            }
 
-        // Priority 2: If suggested account mentions Shopee/e-wallet, match E_WALLET account
-        val matchedByType = if (matchedByName == null && txData.suggestedAccountName != null) {
-            val s = txData.suggestedAccountName.lowercase()
-            if (s.contains("shopee") || s.contains("momo") || s.contains("zalo") || s.contains("ví")) {
-                currentAccounts.firstOrNull { it.type == AccountType.E_WALLET }
-            } else if (s.contains("bank") || s.contains("ngân hàng")) {
-                currentAccounts.firstOrNull { it.type == AccountType.BANK }
+            // Priority 2: If suggested account mentions Shopee/e-wallet, match E_WALLET account
+            val matchedByType = if (matchedByName == null && txData.suggestedAccountName != null) {
+                val s = txData.suggestedAccountName.lowercase()
+                if (s.contains("shopee") || s.contains("momo") || s.contains("zalo") || s.contains("ví")) {
+                    accountsList.firstOrNull { it.type == AccountType.E_WALLET }
+                } else if (s.contains("bank") || s.contains("ngân hàng")) {
+                    accountsList.firstOrNull { it.type == AccountType.BANK }
+                } else {
+                    null
+                }
             } else {
                 null
             }
-        } else {
-            null
-        }
 
-        // Priority 3: Non-reserve account, else first account
-        val matchedAccount = matchedByName ?: matchedByType
-            ?: currentAccounts.firstOrNull { !it.isReserve }
-            ?: currentAccounts.firstOrNull()
+            // Priority 3: Non-reserve account, else first account
+            val matchedAccount = matchedByName ?: matchedByType
+                ?: accountsList.firstOrNull { !it.isReserve }
+                ?: accountsList.first()
 
-        val accountId = matchedAccount?.id ?: 1L
+            val accountId = matchedAccount.id
 
-        // Validate category exists, or fallback
-        val currentCats = allCategories.value
-        val validCatId = if (currentCats.any { it.id == txData.categoryId }) {
-            txData.categoryId
-        } else if (txData.type == TransactionType.INCOME) {
-            "other_income"
-        } else {
-            "shopping"
-        }
+            // Lấy danh mục từ DB
+            val categoriesList = repository.allCategories.first()
+            val validCatId = if (categoriesList.any { it.id == txData.categoryId }) {
+                txData.categoryId
+            } else if (txData.type == TransactionType.INCOME) {
+                "other_income"
+            } else {
+                "shopping"
+            }
 
-        repository.addTransaction(
-            TransactionEntity(
-                amount = txData.amount,
-                type = txData.type,
-                categoryId = validCatId,
-                accountId = accountId,
-                note = txData.note,
-                timestamp = System.currentTimeMillis() + offsetMs
+            repository.addTransaction(
+                TransactionEntity(
+                    amount = txData.amount,
+                    type = txData.type,
+                    categoryId = validCatId,
+                    accountId = accountId,
+                    note = txData.note,
+                    timestamp = System.currentTimeMillis() + offsetMs
+                )
             )
-        )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // ==========================================
