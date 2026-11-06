@@ -54,7 +54,9 @@ import com.expensetracker.app.data.model.SplitMember
 import com.expensetracker.app.ui.components.CategoryIcon
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
+import com.expensetracker.app.utils.CsvExporter
 import com.expensetracker.app.utils.CurrencyUtils
+import com.expensetracker.app.utils.SavedCsvResult
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,6 +112,8 @@ fun SplitBillScreen(
     var selectedAccountId by remember { mutableStateOf<Long?>(null) }
     var selectedCategoryId by remember { mutableStateOf("food") }
     var hasSavedToPersonal by remember { mutableStateOf(false) }
+    var savedCsvResult by remember { mutableStateOf<SavedCsvResult?>(null) }
+    var showSavedSuccessDialog by remember { mutableStateOf(false) }
 
     // Default account selection
     LaunchedEffect(accounts) {
@@ -228,6 +232,8 @@ fun SplitBillScreen(
                         expenseItems = emptyList()
                         result = null
                         hasSavedToPersonal = false
+                        savedCsvResult = null
+                        showSavedSuccessDialog = false
                         Toast.makeText(context, "Đã làm mới dữ liệu", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Làm mới", tint = TextSecondary)
@@ -1272,6 +1278,135 @@ fun SplitBillScreen(
                             }
                         }
 
+                        // Thẻ Xuất & Lưu file Excel / CSV vào bộ nhớ máy
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveCardShape,
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (savedCsvResult != null) Color(0xFFBBF7D0) else Color(0xFFDDD6FE)
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (savedCsvResult != null) Color(0xFFDCFCE7) else Color(0xFFEDE9FE)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (savedCsvResult != null) Icons.Default.CheckCircle else Icons.Default.FileDownload,
+                                            contentDescription = null,
+                                            tint = if (savedCsvResult != null) PrimaryGreen else Color(0xFF6D28D9),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            if (savedCsvResult != null) "Đã lưu bảng tính vào máy" else "Xuất bảng tính Excel / CSV",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            if (savedCsvResult != null) "Tệp: ${savedCsvResult?.fileName}" else "Lưu vào thư mục Tải xuống (Downloads) để duyệt lại trước khi chia sẻ",
+                                            fontSize = 11.sp,
+                                            color = TextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                if (savedCsvResult == null) {
+                                    // Bấm để lưu vào bộ nhớ máy (thư mục Tải xuống / Downloads)
+                                    Button(
+                                        onClick = {
+                                            val saveRes = CsvExporter.saveSplitBillToDownloads(
+                                                context = context,
+                                                result = res,
+                                                items = expenseItems,
+                                                members = members
+                                            )
+                                            if (saveRes != null) {
+                                                savedCsvResult = saveRes
+                                                showSavedSuccessDialog = true
+                                                Toast.makeText(context, "Đã lưu vào thư mục Tải xuống: ${saveRes.fileName}", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(context, "Không thể lưu file vào bộ nhớ", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp),
+                                        shape = ExpressivePillShape,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF4F46E5),
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Lưu file vào bộ nhớ máy (Downloads)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                } else {
+                                    // Sau khi lưu: Hiển thị 2 nút Mở duyệt file & Chia sẻ thủ công
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                savedCsvResult?.let { csvRes ->
+                                                    CsvExporter.openCsvFile(context, csvRes.providerUri)
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp),
+                                            shape = ExpressivePillShape,
+                                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                                        ) {
+                                            Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Mở duyệt file", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                savedCsvResult?.let { csvRes ->
+                                                    CsvExporter.shareCsvFile(
+                                                        context = context,
+                                                        file = csvRes.cacheFile,
+                                                        subject = "Báo cáo phân chia tiền: ${res.eventTitle}"
+                                                    )
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp),
+                                            shape = ExpressivePillShape,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4F46E5)),
+                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4F46E5))
+                                        ) {
+                                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Chia sẻ file", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Card C: Tự động lưu chi tiêu của Tôi vào chi tiêu cá nhân ở trang chủ
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -1581,6 +1716,77 @@ fun SplitBillScreen(
                 hasSavedToPersonal = false
                 showAssignDialog = false
                 Toast.makeText(context, "Đã thêm ${newSplitItems.size} món từ hóa đơn vào buổi chia tiền!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Dialog xác nhận đã lưu file thành công & hỗ trợ mở duyệt ngay
+    if (showSavedSuccessDialog && savedCsvResult != null) {
+        val currentSaved = savedCsvResult!!
+        AlertDialog(
+            onDismissRequest = { showSavedSuccessDialog = false },
+            shape = ExpressiveDialogShape,
+            icon = {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text(
+                    "Đã lưu vào bộ nhớ máy!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Tệp bảng tính đã được lưu vào thư mục Tải xuống (Downloads) của máy:",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                    Surface(
+                        shape = ExpressiveItemShape,
+                        color = Color(0xFFF1F5F9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = currentSaved.fileName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF334155),
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                    Text(
+                        "Bạn có thể mở xem duyệt lại các khoản tính toán ngay bây giờ bằng Microsoft Excel hoặc Google Sheets, hoặc chia sẻ thủ công cho bạn bè sau khi duyệt xong.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B),
+                        lineHeight = 15.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSavedSuccessDialog = false
+                        CsvExporter.openCsvFile(context, currentSaved.providerUri)
+                    },
+                    shape = ExpressivePillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Mở duyệt file ngay", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSavedSuccessDialog = false },
+                    shape = ExpressivePillShape
+                ) {
+                    Text("Đóng", fontWeight = FontWeight.SemiBold)
+                }
             }
         )
     }
