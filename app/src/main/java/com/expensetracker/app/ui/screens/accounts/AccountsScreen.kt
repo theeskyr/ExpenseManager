@@ -87,13 +87,14 @@ fun AccountsScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        ResponsiveContentContainer(maxWidth = 760.dp) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -232,6 +233,7 @@ fun AccountsScreen(
             item {
                 Spacer(modifier = Modifier.height(70.dp))
             }
+        }
         }
     }
 

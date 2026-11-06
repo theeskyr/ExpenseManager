@@ -13,6 +13,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -236,14 +237,15 @@ fun SplitBillScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF8FAFC))
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        ResponsiveContentContainer(maxWidth = 800.dp) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFF8FAFC))
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 // AI Split Bill Hero Card
@@ -393,7 +395,7 @@ fun SplitBillScreen(
                                                 tint = Color(0xFF94A3B8),
                                                 modifier = Modifier
                                                     .size(14.dp)
-                                                    .clickable {
+                                                    .noRippleClickable {
                                                         members = members.filter { it.id != member.id }
                                                         // Update payer if needed
                                                         if (selectedPayerId == member.id) {
@@ -473,7 +475,7 @@ fun SplitBillScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(ExpressiveItemShape)
-                                .clickable(enabled = !isScanningReceipt) { showSourceSheet = true },
+                                .noRippleClickable(enabled = !isScanningReceipt) { showSourceSheet = true },
                             shape = ExpressiveItemShape,
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDD6FE))
@@ -600,7 +602,9 @@ fun SplitBillScreen(
                             items(members, key = { it.id }) { member ->
                                 val isSelected = selectedPayerId == member.id
                                 Surface(
-                                    modifier = Modifier.clickable { selectedPayerId = member.id },
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable { selectedPayerId = member.id },
                                     shape = ExpressivePillShape,
                                     color = if (isSelected) Color(0xFF4F46E5) else Color(0xFFF1F5F9),
                                     border = androidx.compose.foundation.BorderStroke(
@@ -675,9 +679,11 @@ fun SplitBillScreen(
                             val isAllSelected = selectedSharerIds.size == members.size
                             item {
                                 Surface(
-                                    modifier = Modifier.clickable {
-                                        selectedSharerIds = if (isAllSelected) setOf(defaultMe.id) else members.map { it.id }.toSet()
-                                    },
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable {
+                                            selectedSharerIds = if (isAllSelected) setOf(defaultMe.id) else members.map { it.id }.toSet()
+                                        },
                                     shape = ExpressivePillShape,
                                     color = if (isAllSelected) PrimaryGreen else Color(0xFFF1F5F9),
                                     border = androidx.compose.foundation.BorderStroke(
@@ -710,13 +716,15 @@ fun SplitBillScreen(
                             items(members, key = { it.id }) { member ->
                                 val isSharer = selectedSharerIds.contains(member.id)
                                 Surface(
-                                    modifier = Modifier.clickable {
-                                        selectedSharerIds = if (isSharer) {
-                                            if (selectedSharerIds.size > 1) selectedSharerIds - member.id else selectedSharerIds
-                                        } else {
-                                            selectedSharerIds + member.id
-                                        }
-                                    },
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable {
+                                            selectedSharerIds = if (isSharer) {
+                                                if (selectedSharerIds.size > 1) selectedSharerIds - member.id else selectedSharerIds
+                                            } else {
+                                                selectedSharerIds + member.id
+                                            }
+                                        },
                                     shape = ExpressivePillShape,
                                     color = if (isSharer) PrimaryContainer else Color(0xFFF8FAFC),
                                     border = androidx.compose.foundation.BorderStroke(
@@ -1311,7 +1319,9 @@ fun SplitBillScreen(
                                         val isAccSelected = selectedAccountId == acc.id
                                         val accColor = parseColor(acc.colorHex)
                                         Surface(
-                                            modifier = Modifier.clickable { selectedAccountId = acc.id },
+                                            modifier = Modifier
+                                                .clip(ExpressivePillShape)
+                                                .noRippleClickable { selectedAccountId = acc.id },
                                             shape = ExpressivePillShape,
                                             color = if (isAccSelected) accColor.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
                                             border = androidx.compose.foundation.BorderStroke(
@@ -1350,7 +1360,9 @@ fun SplitBillScreen(
                                         val isCatSelected = selectedCategoryId == cat.id
                                         val catColor = parseColor(cat.colorHex)
                                         Surface(
-                                            modifier = Modifier.clickable { selectedCategoryId = cat.id },
+                                            modifier = Modifier
+                                                .clip(ExpressivePillShape)
+                                                .noRippleClickable { selectedCategoryId = cat.id },
                                             shape = ExpressivePillShape,
                                             color = if (isCatSelected) catColor.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
                                             border = androidx.compose.foundation.BorderStroke(
@@ -1444,6 +1456,7 @@ fun SplitBillScreen(
                 Spacer(modifier = Modifier.height(30.dp))
             }
         }
+        }
     }
 
     // Source Sheet Dialog (Camera or Gallery)
@@ -1470,7 +1483,8 @@ fun SplitBillScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clip(ExpressiveItemShape)
+                            .noRippleClickable {
                                 showSourceSheet = false
                                 cameraLauncher.launch(null)
                             },
@@ -1503,7 +1517,8 @@ fun SplitBillScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clip(ExpressiveItemShape)
+                            .noRippleClickable {
                                 showSourceSheet = false
                                 galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             },
@@ -1642,7 +1657,9 @@ fun AssignBillItemsDialog(
                                 items(members, key = { it.id }) { member ->
                                     val isPayer = billPayerId == member.id
                                     Surface(
-                                        modifier = Modifier.clickable { billPayerId = member.id },
+                                        modifier = Modifier
+                                            .clip(ExpressivePillShape)
+                                            .noRippleClickable { billPayerId = member.id },
                                         shape = ExpressivePillShape,
                                         color = if (isPayer) Color(0xFF4F46E5) else Color.White,
                                         border = androidx.compose.foundation.BorderStroke(
@@ -1701,21 +1718,24 @@ fun AssignBillItemsDialog(
                                         .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
                                         .padding(horizontal = 2.dp, vertical = 1.dp)
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            if (item.quantity > 1) {
-                                                val newQty = item.quantity - 1
-                                                val updated = currentItems.toMutableList()
-                                                val newAssigned = if (item.assignedMemberIds.size > newQty) {
-                                                    item.assignedMemberIds.take(newQty).toSet()
-                                                } else {
-                                                    item.assignedMemberIds
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .noRippleClickable {
+                                                if (item.quantity > 1) {
+                                                    val newQty = item.quantity - 1
+                                                    val updated = currentItems.toMutableList()
+                                                    val newAssigned = if (item.assignedMemberIds.size > newQty) {
+                                                        item.assignedMemberIds.take(newQty).toSet()
+                                                    } else {
+                                                        item.assignedMemberIds
+                                                    }
+                                                    updated[index] = item.copy(quantity = newQty, assignedMemberIds = newAssigned)
+                                                    currentItems = updated
                                                 }
-                                                updated[index] = item.copy(quantity = newQty, assignedMemberIds = newAssigned)
-                                                currentItems = updated
-                                            }
-                                        },
-                                        modifier = Modifier.size(24.dp)
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(Icons.Default.Remove, contentDescription = "Giảm", tint = if (item.quantity > 1) TextPrimary else Color(0xFFCBD5E1), modifier = Modifier.size(13.dp))
                                     }
@@ -1726,14 +1746,17 @@ fun AssignBillItemsDialog(
                                         color = if (item.quantity > 1) Color(0xFF4F46E5) else TextPrimary,
                                         modifier = Modifier.padding(horizontal = 4.dp)
                                     )
-                                    IconButton(
-                                        onClick = {
-                                            val newQty = item.quantity + 1
-                                            val updated = currentItems.toMutableList()
-                                            updated[index] = item.copy(quantity = newQty)
-                                            currentItems = updated
-                                        },
-                                        modifier = Modifier.size(24.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .noRippleClickable {
+                                                val newQty = item.quantity + 1
+                                                val updated = currentItems.toMutableList()
+                                                updated[index] = item.copy(quantity = newQty)
+                                                currentItems = updated
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(Icons.Default.Add, contentDescription = "Tăng", tint = PrimaryGreenDark, modifier = Modifier.size(13.dp))
                                     }
@@ -1741,11 +1764,14 @@ fun AssignBillItemsDialog(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                IconButton(
-                                    onClick = {
-                                        currentItems = currentItems.filterIndexed { i, _ -> i != index }
-                                    },
-                                    modifier = Modifier.size(24.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .noRippleClickable {
+                                            currentItems = currentItems.filterIndexed { i, _ -> i != index }
+                                        },
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Default.DeleteOutline, contentDescription = "Xóa", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
                                 }
@@ -1785,36 +1811,38 @@ fun AssignBillItemsDialog(
                                 items(members, key = { it.id }) { member ->
                                     val isSelected = item.assignedMemberIds.contains(member.id)
                                     Surface(
-                                        modifier = Modifier.clickable {
-                                            val updated = currentItems.toMutableList()
-                                            val newSet: Set<String>
-                                            if (item.quantity <= 1) {
-                                                // Mỗi người chỉ uống 1 món: Chọn đơn
-                                                newSet = if (isSelected) {
-                                                    emptySet()
-                                                } else {
-                                                    setOf(member.id)
-                                                }
-                                            } else {
-                                                // Số lượng từ 2 trở lên: Chọn tối đa item.quantity người
-                                                if (isSelected) {
-                                                    newSet = item.assignedMemberIds - member.id
-                                                } else {
-                                                    if (item.assignedMemberIds.size < item.quantity) {
-                                                        newSet = item.assignedMemberIds + member.id
+                                        modifier = Modifier
+                                            .clip(ExpressivePillShape)
+                                            .noRippleClickable {
+                                                val updated = currentItems.toMutableList()
+                                                val newSet: Set<String>
+                                                if (item.quantity <= 1) {
+                                                    // Mỗi người chỉ uống 1 món: Chọn đơn
+                                                    newSet = if (isSelected) {
+                                                        emptySet()
                                                     } else {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Món này có số lượng là ${item.quantity}, đã chọn đủ ${item.quantity} người!",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                        newSet = item.assignedMemberIds
+                                                        setOf(member.id)
+                                                    }
+                                                } else {
+                                                    // Số lượng từ 2 trở lên: Chọn tối đa item.quantity người
+                                                    if (isSelected) {
+                                                        newSet = item.assignedMemberIds - member.id
+                                                    } else {
+                                                        if (item.assignedMemberIds.size < item.quantity) {
+                                                            newSet = item.assignedMemberIds + member.id
+                                                        } else {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Món này có số lượng là ${item.quantity}, đã chọn đủ ${item.quantity} người!",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                            newSet = item.assignedMemberIds
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            updated[index] = item.copy(assignedMemberIds = newSet)
-                                            currentItems = updated
-                                        },
+                                                updated[index] = item.copy(assignedMemberIds = newSet)
+                                                currentItems = updated
+                                            },
                                         shape = ExpressivePillShape,
                                         color = if (isSelected) PrimaryContainer else Color(0xFFF8FAFC),
                                         border = androidx.compose.foundation.BorderStroke(
@@ -1872,6 +1900,17 @@ fun AssignBillItemsDialog(
         shape = ExpressiveCardShape
     )
 }
+
+@Composable
+private fun Modifier.noRippleClickable(
+    enabled: Boolean = true,
+    onClick: () -> Unit
+): Modifier = this.clickable(
+    interactionSource = remember { MutableInteractionSource() },
+    indication = null,
+    enabled = enabled,
+    onClick = onClick
+)
 
 private fun parseMoneyInput(raw: String): Double? {
     val clean = raw.trim().lowercase()

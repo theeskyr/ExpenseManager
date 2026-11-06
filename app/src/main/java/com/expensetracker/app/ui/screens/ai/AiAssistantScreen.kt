@@ -155,11 +155,12 @@ fun AiAssistantScreen(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        ResponsiveContentContainer(maxWidth = 860.dp) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
             // API Key prompt banner if not configured
             if (apiKey.isBlank()) {
                 Surface(
@@ -360,6 +361,7 @@ fun AiAssistantScreen(
                     }
                 }
             }
+        }
         }
     }
 

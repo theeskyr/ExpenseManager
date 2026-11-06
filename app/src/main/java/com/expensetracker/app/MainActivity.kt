@@ -24,9 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.expensetracker.app.ui.components.AppNavigationRail
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -136,6 +138,9 @@ fun MainAppNavHost(
         }
     }
 
+    val windowSizeInfo = rememberWindowSizeInfo()
+    val isWideScreen = windowSizeInfo.isWideScreen
+
     val bottomNavItems = remember {
         listOf(
             Screen.Home,
@@ -146,86 +151,90 @@ fun MainAppNavHost(
         )
     }
 
-    Scaffold(
-        bottomBar = {
-            // Hide bottom bar when in AddTransaction screen, Investments, Accounts, or SplitBill
-            if (currentRoute != Screen.AddTransaction.route && 
-                currentRoute != Screen.Investments.route && 
-                currentRoute != Screen.Accounts.route &&
-                currentRoute != Screen.SplitBill.route) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = ExpressivePillShape,
-                        shadowElevation = 2.dp,
-                        color = Color.White,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(64.dp)
-                                .padding(horizontal = 6.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            bottomNavItems.forEach { screen ->
-                                val isSelected = currentRoute == screen.route
-                                val animatedBgColor by animateColorAsState(
-                                    targetValue = if (isSelected) PrimaryContainer else Color.Transparent,
-                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
-                                    label = "nav_item_bg"
-                                )
-                                val animatedContentColor by animateColorAsState(
-                                    targetValue = if (isSelected) PrimaryGreenDark else Color(0xFF64748B),
-                                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
-                                    label = "nav_item_content"
-                                )
+    val showNavigation = currentRoute != Screen.AddTransaction.route && 
+                         currentRoute != Screen.Investments.route && 
+                         currentRoute != Screen.Accounts.route &&
+                         currentRoute != Screen.SplitBill.route
 
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 2.dp)
-                                        .clip(ExpressivePillShape)
-                                        .background(animatedBgColor)
-                                        .clickable {
-                                            if (currentRoute != screen.route) {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        saveState = true
+    CompositionLocalProvider(LocalWindowSizeInfo provides windowSizeInfo) {
+        Scaffold(
+            bottomBar = {
+                // Show floating bottom bar only on compact screens (e.g. phones in portrait)
+                if (!isWideScreen && showNavigation) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Surface(
+                            shape = ExpressivePillShape,
+                            shadowElevation = 2.dp,
+                            color = Color.White,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(64.dp)
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                bottomNavItems.forEach { screen ->
+                                    val isSelected = currentRoute == screen.route
+                                    val animatedBgColor by animateColorAsState(
+                                        targetValue = if (isSelected) PrimaryContainer else Color.Transparent,
+                                        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+                                        label = "nav_item_bg"
+                                    )
+                                    val animatedContentColor by animateColorAsState(
+                                        targetValue = if (isSelected) PrimaryGreenDark else Color(0xFF64748B),
+                                        animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing),
+                                        label = "nav_item_content"
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .padding(horizontal = 2.dp)
+                                            .clip(ExpressivePillShape)
+                                            .background(animatedBgColor)
+                                            .clickable {
+                                                if (currentRoute != screen.route) {
+                                                    navController.navigate(screen.route) {
+                                                        popUpTo(navController.graph.findStartDestination().id) {
+                                                            saveState = true
+                                                        }
+                                                        launchSingleTop = true
+                                                        restoreState = true
                                                     }
-                                                    launchSingleTop = true
-                                                    restoreState = true
                                                 }
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
+                                            },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = screen.icon,
-                                            contentDescription = screen.title,
-                                            tint = animatedContentColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = screen.title,
-                                            color = animatedContentColor,
-                                            fontSize = 10.sp,
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            maxLines = 1
-                                        )
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = screen.icon,
+                                                contentDescription = screen.title,
+                                                tint = animatedContentColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = screen.title,
+                                                color = animatedContentColor,
+                                                fontSize = 10.sp,
+                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                maxLines = 1
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -233,14 +242,43 @@ fun MainAppNavHost(
                     }
                 }
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                // Navigation Rail on the left for wide screens (tablets, landscape)
+                if (isWideScreen && showNavigation) {
+                    AppNavigationRail(
+                        currentRoute = currentRoute,
+                        items = bottomNavItems,
+                        onNavigate = { screen ->
+                            if (currentRoute != screen.route) {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        },
+                        onQuickAdd = {
+                            navController.navigate(Screen.AddTransaction.route)
+                        }
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                ) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = Screen.Home.route,
+                        modifier = Modifier.fillMaxSize(),
             enterTransition = {
                 fadeIn(animationSpec = tween(150, easing = LinearEasing))
             },
@@ -354,5 +392,8 @@ fun MainAppNavHost(
                 )
             }
         }
+            }
+        }
     }
+}
 }

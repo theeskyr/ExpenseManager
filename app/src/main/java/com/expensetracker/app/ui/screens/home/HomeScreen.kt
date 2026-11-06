@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -36,6 +37,7 @@ import java.util.Calendar
 import java.util.Locale
 import com.expensetracker.app.data.local.entity.AccountEntity
 import com.expensetracker.app.data.local.entity.AccountType
+import com.expensetracker.app.data.local.entity.BudgetEntity
 import com.expensetracker.app.data.local.entity.CategoryEntity
 import com.expensetracker.app.data.local.entity.TransactionEntity
 import com.expensetracker.app.data.local.entity.TransactionType
@@ -145,631 +147,195 @@ fun HomeScreen(
         ).show()
     }
 
+    val windowSizeInfo = LocalWindowSizeInfo.current
+
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToAdd,
-                shape = RoundedCornerShape(20.dp),
-                containerColor = PrimaryGreen,
-                contentColor = Color.White,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm giao dịch", modifier = Modifier.size(28.dp))
+            // Show FAB only on compact screens since wide screens have the quick Add button in the Navigation Rail
+            if (!windowSizeInfo.isWideScreen) {
+                FloatingActionButton(
+                    onClick = onNavigateToAdd,
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = PrimaryGreen,
+                    contentColor = Color.White,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Thêm giao dịch", modifier = Modifier.size(28.dp))
+                }
             }
         }
     ) { paddingValues ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item(key = "total_balance", contentType = "total_balance") {
-                Spacer(modifier = Modifier.height(4.dp))
-                // Header Total Balance Card with Reserve & Available Balance
-                TotalBalanceCard(
-                    totalBalance = totalBalance,
-                    reserveBalance = reserveBalance,
-                    availableBalance = availableBalance,
-                    monthExpense = monthExpense,
-                    monthIncome = monthIncome,
-                    onManageAccounts = onNavigateToAccounts,
-                    onViewMonthIncome = {
-                        selectedTransactionType = TransactionType.INCOME
-                        coroutineScope.launch {
-                            val targetIndex = if (monthlyBudget != null) 4 else 3
-                            listState.animateScrollToItem(targetIndex)
-                        }
-                    },
-                    onViewMonthExpense = {
-                        selectedTransactionType = TransactionType.EXPENSE
-                        coroutineScope.launch {
-                            val targetIndex = if (monthlyBudget != null) 4 else 3
-                            listState.animateScrollToItem(targetIndex)
-                        }
-                    }
-                )
-            }
-
-            // Quick Actions: AI & Investments (M3 Expressive Cards)
-            item(key = "quick_actions", contentType = "quick_actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // AI Assistant Card
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(Color(0xFFF0FDF4), ExpressiveCardShape)
-                            .border(1.dp, Color(0xFFBBF7D0), ExpressiveCardShape)
-                            .clip(ExpressiveCardShape)
-                            .clickable { onNavigateToAi() }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .background(PrimaryGreen, ExpressiveSquircleIconShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Trợ lý AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
-                            Text("Chat & Quét bill", fontSize = 11.sp, color = Color(0xFF15803D))
-                        }
-                    }
-
-                    // Investments Card
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(Color(0xFFEFF6FF), ExpressiveCardShape)
-                            .border(1.dp, Color(0xFFBFDBFE), ExpressiveCardShape)
-                            .clip(ExpressiveCardShape)
-                            .clickable { onNavigateToInvestments() }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .background(Color(0xFF2563EB), ExpressiveSquircleIconShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E40AF))
-                            Text("Vàng, Cổ phiếu...", fontSize = 11.sp, color = Color(0xFF2563EB))
-                        }
-                    }
-                }
-            }
-
-            // AI Bill Splitting Banner (Không gian chia tiền nhóm cùng AI)
-            item(key = "split_bill_banner", contentType = "split_bill_banner") {
-                val splitBannerGradient = remember {
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF4338CA), Color(0xFF6D28D9), Color(0xFF9333EA))
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(splitBannerGradient, ExpressiveCardShape)
-                        .clip(ExpressiveCardShape)
-                        .clickable { onNavigateToSplitBill() }
-                        .padding(14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(Color.White.copy(alpha = 0.22f), ExpressiveSquircleIconShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Groups,
-                                contentDescription = "Chia tiền",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "⚡ TÍNH NĂNG MỚI • AI",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    modifier = Modifier
-                                        .background(Color.White.copy(alpha = 0.22f), ExpressivePillShape)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                "Chia tiền nhóm cùng AI",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                "Tính ai nợ ai sòng phẳng & tự lưu chi tiêu cá nhân",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.88f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-
-            // My Wallets & Accounts Section (Tiền mặt, Ngân hàng, Ví điện tử...)
-            item(key = "accounts_section", contentType = "accounts_section") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Nguồn tiền & Ví (${accounts.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    TextButton(onClick = onNavigateToAccounts) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryGreen)
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("Thêm ví", fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 13.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    accounts.forEach { acc ->
-                        AccountQuickCard(
-                            account = acc,
-                            isSelected = (selectedFilterAccountId == acc.id),
-                            onClick = { selectedAccountForDetail = acc }
-                        )
-                    }
-
-                    // Add new wallet card
-                    Column(
-                        modifier = Modifier
-                            .width(130.dp)
-                            .height(88.dp)
-                            .background(Color.White, ExpressiveItemShape)
-                            .border(1.dp, Color(0xFFE2E8F0), ExpressiveItemShape)
-                            .clip(ExpressiveItemShape)
-                            .clickable { onNavigateToAccounts() }
-                            .padding(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(PrimaryContainer, ExpressiveSquircleIconShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Thêm ví mới", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-
-            // Budget Alert / Progress Card (if budget is set)
-            monthlyBudget?.let { budget ->
-                item(key = "budget_card", contentType = "budget_card") {
-                    BudgetSummaryCard(
-                        spent = monthExpense,
-                        limit = budget.amountLimit
-                    )
-                }
-            }
-
-            // Recent Transactions & Date Filter Header
-            item(key = "tx_filter_header", contentType = "tx_filter_header") {
+        if (windowSizeInfo.isExpanded) {
+            // Responsive Dual-Pane Layout for Tablets / Wide Landscape Screens
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                // Left Column: Financial Overview (Balance, Quick Actions, Split Bill, Accounts, Budget)
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp)
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Lịch sử giao dịch",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            val subtitle = buildString {
-                                append("${filteredTransactions.size} giao dịch")
-                                if (selectedTransactionType != null) {
-                                    append(if (selectedTransactionType == TransactionType.EXPENSE) " • Chi tiêu" else " • Thu nhập")
-                                }
-                                if (selectedFilterAccountId != null) {
-                                    append(" • Ví: ${accountMap[selectedFilterAccountId]?.name ?: ""}")
-                                }
-                                if (selectedFilterDate != null) {
-                                    append(" • Ngày ${DateUtils.formatDate(selectedFilterDate!!)}")
-                                } else if (selectedFilterAccountId == null && selectedTransactionType == null) {
-                                    append(" • Toàn bộ các ngày")
-                                }
-                            }
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF64748B)
-                            )
-                        }
+                    HomeOverviewSection(
+                        totalBalance = totalBalance,
+                        reserveBalance = reserveBalance,
+                        availableBalance = availableBalance,
+                        monthExpense = monthExpense,
+                        monthIncome = monthIncome,
+                        monthlyBudget = monthlyBudget,
+                        accounts = accounts,
+                        selectedFilterAccountId = selectedFilterAccountId,
+                        onManageAccounts = onNavigateToAccounts,
+                        onViewMonthIncome = {
+                            selectedTransactionType = TransactionType.INCOME
+                        },
+                        onViewMonthExpense = {
+                            selectedTransactionType = TransactionType.EXPENSE
+                        },
+                        onNavigateToAi = onNavigateToAi,
+                        onNavigateToInvestments = onNavigateToInvestments,
+                        onNavigateToSplitBill = onNavigateToSplitBill,
+                        onNavigateToAccounts = onNavigateToAccounts,
+                        onSelectAccountForDetail = { selectedAccountForDetail = it }
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
 
-                        if (selectedFilterDate != null || selectedFilterAccountId != null || selectedTransactionType != null) {
-                            TextButton(
-                                onClick = {
-                                    selectedFilterDate = null
-                                    selectedFilterAccountId = null
-                                    selectedTransactionType = null
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "Xem tất cả",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryGreen
-                                )
-                            }
-                        }
+                // Right Column: Transaction History (Filters & List)
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item(key = "tx_filter_header", contentType = "tx_filter_header") {
+                        HomeTransactionFilterHeader(
+                            filteredTransactionsCount = filteredTransactions.size,
+                            selectedTransactionType = selectedTransactionType,
+                            selectedFilterAccountId = selectedFilterAccountId,
+                            selectedFilterDate = selectedFilterDate,
+                            accountMap = accountMap,
+                            todayStart = todayStart,
+                            yesterdayStart = yesterdayStart,
+                            onClearFilters = {
+                                selectedFilterDate = null
+                                selectedFilterAccountId = null
+                                selectedTransactionType = null
+                            },
+                            onSelectTransactionType = { selectedTransactionType = it },
+                            onSelectFilterDate = { selectedFilterDate = it },
+                            onSelectFilterAccount = { selectedFilterAccountId = it },
+                            onShowDatePicker = { showDatePicker() }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    transactionsListContent(
+                        filteredTransactions = filteredTransactions,
+                        selectedFilterDate = selectedFilterDate,
+                        dayGroups = dayGroups,
+                        categoryMap = categoryMap,
+                        accountMap = accountMap,
+                        onClearDateFilter = { selectedFilterDate = null },
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        onClickTransaction = { editingTransaction = it }
+                    )
 
-                    // Transaction Type Switcher: Tất cả / Chi tiêu (-) / Thu nhập (+) (M3 Expressive Pill Segmented)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(42.dp)
-                            .clip(ExpressivePillShape)
-                            .background(Color(0xFFF1F5F9))
-                            .padding(3.dp)
-                    ) {
-                        // 1. Tất cả
-                        val isAllType = selectedTransactionType == null
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(ExpressivePillShape)
-                                .background(if (isAllType) Color.White else Color.Transparent)
-                                .clickable { selectedTransactionType = null },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Tất cả",
-                                fontSize = 12.sp,
-                                fontWeight = if (isAllType) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isAllType) PrimaryGreenDark else Color(0xFF64748B)
-                            )
-                        }
-
-                        // 2. Chi tiêu (-)
-                        val isExpenseSelected = selectedTransactionType == TransactionType.EXPENSE
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(ExpressivePillShape)
-                                .background(if (isExpenseSelected) ExpenseRed else Color.Transparent)
-                                .clickable {
-                                    selectedTransactionType = if (isExpenseSelected) null else TransactionType.EXPENSE
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.TrendingDown,
-                                    contentDescription = null,
-                                    tint = if (isExpenseSelected) Color.White else ExpenseRed,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Chi tiêu",
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isExpenseSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isExpenseSelected) Color.White else Color(0xFF64748B)
-                                )
-                            }
-                        }
-
-                        // 3. Thu nhập (+)
-                        val isIncomeSelected = selectedTransactionType == TransactionType.INCOME
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(ExpressivePillShape)
-                                .background(if (isIncomeSelected) IncomeGreen else Color.Transparent)
-                                .clickable {
-                                    selectedTransactionType = if (isIncomeSelected) null else TransactionType.INCOME
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.TrendingUp,
-                                    contentDescription = null,
-                                    tint = if (isIncomeSelected) Color.White else IncomeGreen,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Thu nhập",
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isIncomeSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isIncomeSelected) Color.White else Color(0xFF64748B)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Date Filter Chips Row
-                    val isAllSelected = selectedFilterDate == null
-                    val isTodaySelected = selectedFilterDate == todayStart
-                    val isYesterdaySelected = selectedFilterDate == yesterdayStart
-                    val isCustomDate = selectedFilterDate != null && !isTodaySelected && !isYesterdaySelected
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 1. Tất cả
-                        FilterChip(
-                            selected = isAllSelected,
-                            onClick = { selectedFilterDate = null },
-                            label = { Text("Tất cả", fontSize = 12.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryGreen,
-                                selectedLabelColor = Color.White,
-                                containerColor = Color.White
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isAllSelected,
-                                borderColor = if (isAllSelected) PrimaryGreen else Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        // 2. Hôm nay
-                        FilterChip(
-                            selected = isTodaySelected,
-                            onClick = {
-                                selectedFilterDate = if (isTodaySelected) null else todayStart
-                            },
-                            label = { Text("Hôm nay", fontSize = 12.sp, fontWeight = if (isTodaySelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryGreen,
-                                selectedLabelColor = Color.White,
-                                containerColor = Color.White
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isTodaySelected,
-                                borderColor = if (isTodaySelected) PrimaryGreen else Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        // 3. Hôm qua
-                        FilterChip(
-                            selected = isYesterdaySelected,
-                            onClick = {
-                                selectedFilterDate = if (isYesterdaySelected) null else yesterdayStart
-                            },
-                            label = { Text("Hôm qua", fontSize = 12.sp, fontWeight = if (isYesterdaySelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryGreen,
-                                selectedLabelColor = Color.White,
-                                containerColor = Color.White
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isYesterdaySelected,
-                                borderColor = if (isYesterdaySelected) PrimaryGreen else Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        // 4. Chọn ngày cụ thể
-                        FilterChip(
-                            selected = isCustomDate,
-                            onClick = {
-                                showDatePicker()
-                            },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.CalendarToday,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(12.dp),
-                                        tint = if (isCustomDate) Color.White else Color(0xFF475569)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = if (isCustomDate) DateUtils.formatDate(selectedFilterDate!!) else "Chọn ngày 📅",
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isCustomDate) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    if (isCustomDate) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Hủy chọn ngày",
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .clickable { selectedFilterDate = null },
-                                            tint = Color.White
-                                        )
-                                    }
-                                }
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = PrimaryGreen,
-                                selectedLabelColor = Color.White,
-                                containerColor = Color.White
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isCustomDate,
-                                borderColor = if (isCustomDate) PrimaryGreen else Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        // 5. Filter theo Nguồn tiền / Ví (nếu đang chọn)
-                        val filteredAccount = accountMap[selectedFilterAccountId]
-                        if (filteredAccount != null) {
-                            FilterChip(
-                                selected = true,
-                                onClick = { selectedFilterAccountId = null },
-                                shape = ExpressivePillShape,
-                                label = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "Ví: ${filteredAccount.name}",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Hủy lọc ví",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = PrimaryGreenDark,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                        }
+                    item(key = "end_spacer", contentType = "end_spacer") {
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
-
-            if (filteredTransactions.isEmpty()) {
-                item(key = "empty_state", contentType = "empty_state") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.EventBusy,
-                                contentDescription = null,
-                                tint = Color(0xFFCBD5E1),
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (selectedFilterDate != null)
-                                    "Không có giao dịch nào trong ngày này"
-                                else
-                                    "Chưa có giao dịch nào",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color(0xFF94A3B8)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            if (selectedFilterDate != null) {
-                                TextButton(onClick = { selectedFilterDate = null }) {
-                                    Text("Xem lại toàn bộ các ngày", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+        } else {
+            // Single-Column Layout for Mobile Phones & Medium Foldables (centered with width constraint)
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    item(key = "home_overview", contentType = "home_overview") {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        HomeOverviewSection(
+                            totalBalance = totalBalance,
+                            reserveBalance = reserveBalance,
+                            availableBalance = availableBalance,
+                            monthExpense = monthExpense,
+                            monthIncome = monthIncome,
+                            monthlyBudget = monthlyBudget,
+                            accounts = accounts,
+                            selectedFilterAccountId = selectedFilterAccountId,
+                            onManageAccounts = onNavigateToAccounts,
+                            onViewMonthIncome = {
+                                selectedTransactionType = TransactionType.INCOME
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(1)
                                 }
-                            } else {
-                                Text(
-                                    text = "Bấm dấu (+) bên dưới để thêm khoản chi đầu tiên",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFFCBD5E1)
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                dayGroups.forEach { group ->
-                    item(
-                        key = "day_header_${group.dayTimestamp}",
-                        contentType = "day_header"
-                    ) {
-                        DayGroupHeader(
-                            dayTimestamp = group.dayTimestamp,
-                            dateLabel = group.dateLabel,
-                            totalExpense = group.dayExpense,
-                            totalIncome = group.dayIncome,
-                            count = group.transactions.size
+                            },
+                            onViewMonthExpense = {
+                                selectedTransactionType = TransactionType.EXPENSE
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(1)
+                                }
+                            },
+                            onNavigateToAi = onNavigateToAi,
+                            onNavigateToInvestments = onNavigateToInvestments,
+                            onNavigateToSplitBill = onNavigateToSplitBill,
+                            onNavigateToAccounts = onNavigateToAccounts,
+                            onSelectAccountForDetail = { selectedAccountForDetail = it }
                         )
                     }
 
-                    items(
-                        items = group.transactions,
-                        key = { it.id },
-                        contentType = { "tx_item" }
-                    ) { tx ->
-                        TransactionItem(
-                            transaction = tx,
-                            category = categoryMap[tx.categoryId],
-                            account = accountMap[tx.accountId],
-                            onDelete = { viewModel.deleteTransaction(tx) },
-                            onClick = { editingTransaction = tx }
+                    item(key = "tx_filter_header", contentType = "tx_filter_header") {
+                        HomeTransactionFilterHeader(
+                            filteredTransactionsCount = filteredTransactions.size,
+                            selectedTransactionType = selectedTransactionType,
+                            selectedFilterAccountId = selectedFilterAccountId,
+                            selectedFilterDate = selectedFilterDate,
+                            accountMap = accountMap,
+                            todayStart = todayStart,
+                            yesterdayStart = yesterdayStart,
+                            onClearFilters = {
+                                selectedFilterDate = null
+                                selectedFilterAccountId = null
+                                selectedTransactionType = null
+                            },
+                            onSelectTransactionType = { selectedTransactionType = it },
+                            onSelectFilterDate = { selectedFilterDate = it },
+                            onSelectFilterAccount = { selectedFilterAccountId = it },
+                            onShowDatePicker = { showDatePicker() }
                         )
                     }
-                }
-            }
 
-            item(key = "fab_spacer", contentType = "fab_spacer") {
-                Spacer(modifier = Modifier.height(70.dp)) // padding for FAB
+                    transactionsListContent(
+                        filteredTransactions = filteredTransactions,
+                        selectedFilterDate = selectedFilterDate,
+                        dayGroups = dayGroups,
+                        categoryMap = categoryMap,
+                        accountMap = accountMap,
+                        onClearDateFilter = { selectedFilterDate = null },
+                        onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                        onClickTransaction = { editingTransaction = it }
+                    )
+
+                    item(key = "fab_spacer", contentType = "fab_spacer") {
+                        Spacer(modifier = Modifier.height(70.dp)) // padding for FAB
+                    }
+                }
             }
         }
     }
@@ -809,6 +375,629 @@ fun HomeScreen(
                 selectedFilterAccountId = accId
             }
         )
+    }
+}
+
+@Composable
+private fun HomeOverviewSection(
+    totalBalance: Double,
+    reserveBalance: Double,
+    availableBalance: Double,
+    monthExpense: Double,
+    monthIncome: Double,
+    monthlyBudget: BudgetEntity?,
+    accounts: List<AccountEntity>,
+    selectedFilterAccountId: Long?,
+    onManageAccounts: () -> Unit,
+    onViewMonthIncome: () -> Unit,
+    onViewMonthExpense: () -> Unit,
+    onNavigateToAi: () -> Unit,
+    onNavigateToInvestments: () -> Unit,
+    onNavigateToSplitBill: () -> Unit,
+    onNavigateToAccounts: () -> Unit,
+    onSelectAccountForDetail: (AccountEntity) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Header Total Balance Card with Reserve & Available Balance
+        TotalBalanceCard(
+            totalBalance = totalBalance,
+            reserveBalance = reserveBalance,
+            availableBalance = availableBalance,
+            monthExpense = monthExpense,
+            monthIncome = monthIncome,
+            onManageAccounts = onManageAccounts,
+            onViewMonthIncome = onViewMonthIncome,
+            onViewMonthExpense = onViewMonthExpense
+        )
+
+        // Quick Actions: AI & Investments
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // AI Assistant Card
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Color(0xFFF0FDF4), ExpressiveCardShape)
+                    .border(1.dp, Color(0xFFBBF7D0), ExpressiveCardShape)
+                    .clip(ExpressiveCardShape)
+                    .clickable { onNavigateToAi() }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(PrimaryGreen, ExpressiveSquircleIconShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text("Trợ lý AI", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
+                    Text("Chat & Quét bill", fontSize = 11.sp, color = Color(0xFF15803D))
+                }
+            }
+
+            // Investments Card
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(Color(0xFFEFF6FF), ExpressiveCardShape)
+                    .border(1.dp, Color(0xFFBFDBFE), ExpressiveCardShape)
+                    .clip(ExpressiveCardShape)
+                    .clickable { onNavigateToInvestments() }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(Color(0xFF2563EB), ExpressiveSquircleIconShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text("Đầu tư", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1E40AF))
+                    Text("Vàng, Cổ phiếu...", fontSize = 11.sp, color = Color(0xFF2563EB))
+                }
+            }
+        }
+
+        // AI Bill Splitting Banner
+        val splitBannerGradient = remember {
+            Brush.linearGradient(
+                colors = listOf(Color(0xFF4338CA), Color(0xFF6D28D9), Color(0xFF9333EA))
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(splitBannerGradient, ExpressiveCardShape)
+                .clip(ExpressiveCardShape)
+                .clickable { onNavigateToSplitBill() }
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color.White.copy(alpha = 0.22f), ExpressiveSquircleIconShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Groups,
+                        contentDescription = "Chia tiền",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "⚡ TÍNH NĂNG MỚI • AI",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.22f), ExpressivePillShape)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        "Chia tiền nhóm cùng AI",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        "Tính ai nợ ai sòng phẳng & tự lưu chi tiêu cá nhân",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.88f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        // My Wallets & Accounts Section
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Nguồn tiền & Ví (${accounts.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = onNavigateToAccounts) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryGreen)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("Thêm ví", fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                accounts.forEach { acc ->
+                    AccountQuickCard(
+                        account = acc,
+                        isSelected = (selectedFilterAccountId == acc.id),
+                        onClick = { onSelectAccountForDetail(acc) }
+                    )
+                }
+
+                // Add new wallet card
+                Column(
+                    modifier = Modifier
+                        .width(130.dp)
+                        .height(88.dp)
+                        .background(Color.White, ExpressiveItemShape)
+                        .border(1.dp, Color(0xFFE2E8F0), ExpressiveItemShape)
+                        .clip(ExpressiveItemShape)
+                        .clickable { onNavigateToAccounts() }
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(PrimaryContainer, ExpressiveSquircleIconShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Thêm ví mới", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+
+        // Budget Alert / Progress Card (if budget is set)
+        monthlyBudget?.let { budget ->
+            BudgetSummaryCard(
+                spent = monthExpense,
+                limit = budget.amountLimit
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeTransactionFilterHeader(
+    filteredTransactionsCount: Int,
+    selectedTransactionType: TransactionType?,
+    selectedFilterAccountId: Long?,
+    selectedFilterDate: Long?,
+    accountMap: Map<Long, AccountEntity>,
+    todayStart: Long,
+    yesterdayStart: Long,
+    onClearFilters: () -> Unit,
+    onSelectTransactionType: (TransactionType?) -> Unit,
+    onSelectFilterDate: (Long?) -> Unit,
+    onSelectFilterAccount: (Long?) -> Unit,
+    onShowDatePicker: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Lịch sử giao dịch",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                val subtitle = buildString {
+                    append("$filteredTransactionsCount giao dịch")
+                    if (selectedTransactionType != null) {
+                        append(if (selectedTransactionType == TransactionType.EXPENSE) " • Chi tiêu" else " • Thu nhập")
+                    }
+                    if (selectedFilterAccountId != null) {
+                        append(" • Ví: ${accountMap[selectedFilterAccountId]?.name ?: ""}")
+                    }
+                    if (selectedFilterDate != null) {
+                        append(" • Ngày ${DateUtils.formatDate(selectedFilterDate)}")
+                    } else if (selectedFilterAccountId == null && selectedTransactionType == null) {
+                        append(" • Toàn bộ các ngày")
+                    }
+                }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF64748B)
+                )
+            }
+
+            if (selectedFilterDate != null || selectedFilterAccountId != null || selectedTransactionType != null) {
+                TextButton(
+                    onClick = onClearFilters,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "Xem tất cả",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryGreen
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Transaction Type Switcher: Tất cả / Chi tiêu (-) / Thu nhập (+) (M3 Expressive Pill Segmented)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .clip(ExpressivePillShape)
+                .background(Color(0xFFF1F5F9))
+                .padding(3.dp)
+        ) {
+            // 1. Tất cả
+            val isAllType = selectedTransactionType == null
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(ExpressivePillShape)
+                    .background(if (isAllType) Color.White else Color.Transparent)
+                    .clickable { onSelectTransactionType(null) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Tất cả",
+                    fontSize = 12.sp,
+                    fontWeight = if (isAllType) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isAllType) PrimaryGreenDark else Color(0xFF64748B)
+                )
+            }
+
+            // 2. Chi tiêu (-)
+            val isExpenseSelected = selectedTransactionType == TransactionType.EXPENSE
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(ExpressivePillShape)
+                    .background(if (isExpenseSelected) ExpenseRed else Color.Transparent)
+                    .clickable {
+                        onSelectTransactionType(if (isExpenseSelected) null else TransactionType.EXPENSE)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.TrendingDown,
+                        contentDescription = null,
+                        tint = if (isExpenseSelected) Color.White else ExpenseRed,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Chi tiêu",
+                        fontSize = 12.sp,
+                        fontWeight = if (isExpenseSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isExpenseSelected) Color.White else Color(0xFF64748B)
+                    )
+                }
+            }
+
+            // 3. Thu nhập (+)
+            val isIncomeSelected = selectedTransactionType == TransactionType.INCOME
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(ExpressivePillShape)
+                    .background(if (isIncomeSelected) IncomeGreen else Color.Transparent)
+                    .clickable {
+                        onSelectTransactionType(if (isIncomeSelected) null else TransactionType.INCOME)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        tint = if (isIncomeSelected) Color.White else IncomeGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Thu nhập",
+                        fontSize = 12.sp,
+                        fontWeight = if (isIncomeSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isIncomeSelected) Color.White else Color(0xFF64748B)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Date Filter Chips Row
+        val isAllSelected = selectedFilterDate == null
+        val isTodaySelected = selectedFilterDate == todayStart
+        val isYesterdaySelected = selectedFilterDate == yesterdayStart
+        val isCustomDate = selectedFilterDate != null && !isTodaySelected && !isYesterdaySelected
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 1. Tất cả
+            FilterChip(
+                selected = isAllSelected,
+                onClick = { onSelectFilterDate(null) },
+                label = { Text("Tất cả", fontSize = 12.sp, fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PrimaryGreen,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color.White
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isAllSelected,
+                    borderColor = if (isAllSelected) PrimaryGreen else Color(0xFFCBD5E1)
+                )
+            )
+
+            // 2. Hôm nay
+            FilterChip(
+                selected = isTodaySelected,
+                onClick = {
+                    onSelectFilterDate(if (isTodaySelected) null else todayStart)
+                },
+                label = { Text("Hôm nay", fontSize = 12.sp, fontWeight = if (isTodaySelected) FontWeight.Bold else FontWeight.Normal) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PrimaryGreen,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color.White
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isTodaySelected,
+                    borderColor = if (isTodaySelected) PrimaryGreen else Color(0xFFCBD5E1)
+                )
+            )
+
+            // 3. Hôm qua
+            FilterChip(
+                selected = isYesterdaySelected,
+                onClick = {
+                    onSelectFilterDate(if (isYesterdaySelected) null else yesterdayStart)
+                },
+                label = { Text("Hôm qua", fontSize = 12.sp, fontWeight = if (isYesterdaySelected) FontWeight.Bold else FontWeight.Normal) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PrimaryGreen,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color.White
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isYesterdaySelected,
+                    borderColor = if (isYesterdaySelected) PrimaryGreen else Color(0xFFCBD5E1)
+                )
+            )
+
+            // 4. Chọn ngày cụ thể
+            FilterChip(
+                selected = isCustomDate,
+                onClick = onShowDatePicker,
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = if (isCustomDate) Color.White else Color(0xFF475569)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isCustomDate) DateUtils.formatDate(selectedFilterDate!!) else "Chọn ngày 📅",
+                            fontSize = 12.sp,
+                            fontWeight = if (isCustomDate) FontWeight.Bold else FontWeight.Normal
+                        )
+                        if (isCustomDate) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Hủy chọn ngày",
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { onSelectFilterDate(null) },
+                                tint = Color.White
+                            )
+                        }
+                    }
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = PrimaryGreen,
+                    selectedLabelColor = Color.White,
+                    containerColor = Color.White
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isCustomDate,
+                    borderColor = if (isCustomDate) PrimaryGreen else Color(0xFFCBD5E1)
+                )
+            )
+
+            // 5. Filter theo Nguồn tiền / Ví (nếu đang chọn)
+            val filteredAccount = accountMap[selectedFilterAccountId]
+            if (filteredAccount != null) {
+                FilterChip(
+                    selected = true,
+                    onClick = { onSelectFilterAccount(null) },
+                    shape = ExpressivePillShape,
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Ví: ${filteredAccount.name}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Hủy lọc ví",
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = PrimaryGreenDark,
+                        selectedLabelColor = Color.White
+                    )
+                )
+            }
+        }
+    }
+}
+
+private fun LazyListScope.transactionsListContent(
+    filteredTransactions: List<TransactionEntity>,
+    selectedFilterDate: Long?,
+    dayGroups: List<DayTransactionGroup>,
+    categoryMap: Map<String, CategoryEntity>,
+    accountMap: Map<Long, AccountEntity>,
+    onClearDateFilter: () -> Unit,
+    onDeleteTransaction: (TransactionEntity) -> Unit,
+    onClickTransaction: (TransactionEntity) -> Unit
+) {
+    if (filteredTransactions.isEmpty()) {
+        item(key = "empty_state", contentType = "empty_state") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.EventBusy,
+                        contentDescription = null,
+                        tint = Color(0xFFCBD5E1),
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (selectedFilterDate != null)
+                            "Không có giao dịch nào trong ngày này"
+                        else
+                            "Chưa có giao dịch nào",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color(0xFF94A3B8)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (selectedFilterDate != null) {
+                        TextButton(onClick = onClearDateFilter) {
+                            Text("Xem lại toàn bộ các ngày", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text(
+                            text = "Bấm dấu (+) bên dưới để thêm khoản chi đầu tiên",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        dayGroups.forEach { group ->
+            item(
+                key = "day_header_${group.dayTimestamp}",
+                contentType = "day_header"
+            ) {
+                DayGroupHeader(
+                    dayTimestamp = group.dayTimestamp,
+                    dateLabel = group.dateLabel,
+                    totalExpense = group.dayExpense,
+                    totalIncome = group.dayIncome,
+                    count = group.transactions.size
+                )
+            }
+
+            items(
+                items = group.transactions,
+                key = { it.id },
+                contentType = { "tx_item" }
+            ) { tx ->
+                TransactionItem(
+                    transaction = tx,
+                    category = categoryMap[tx.categoryId],
+                    account = accountMap[tx.accountId],
+                    onDelete = { onDeleteTransaction(tx) },
+                    onClick = { onClickTransaction(tx) }
+                )
+            }
+        }
     }
 }
 

@@ -44,12 +44,13 @@ fun BudgetScreen(
     val remainingDays = (daysInMonth - currentDay + 1).coerceAtLeast(1)
     val dailyAllowance = if (remaining > 0) remaining / remainingDays else 0.0
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    ResponsiveContentContainer(maxWidth = 720.dp) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -236,6 +237,9 @@ fun BudgetScreen(
                     }
                 }
             }
+            item {
+                Spacer(modifier = Modifier.height(80.dp))
+            }
         }
     }
 
@@ -289,4 +293,5 @@ fun BudgetScreen(
             }
         )
     }
+}
 }

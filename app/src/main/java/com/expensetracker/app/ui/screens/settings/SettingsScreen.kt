@@ -37,12 +37,13 @@ fun SettingsScreen(
     val context = LocalContext.current
     var showResetDialog by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    ResponsiveContentContainer(maxWidth = 720.dp) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -606,6 +607,7 @@ fun SettingsScreen(
                 )
             }
         }
+    }
     }
 
     if (showResetDialog) {

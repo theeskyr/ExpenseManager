@@ -85,13 +85,14 @@ fun AddTransactionScreen(
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
+        ResponsiveContentContainer(maxWidth = 680.dp) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
             // Expense / Income Segmented Buttons (M3 Expressive Pill Segmented)
             Row(
                 modifier = Modifier
@@ -411,6 +412,7 @@ fun AddTransactionScreen(
             }
 
             Spacer(modifier = Modifier.height(20.dp))
+        }
         }
     }
 }
