@@ -86,13 +86,18 @@ fun AccountDetailBottomSheet(
         containerColor = Color.White,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.88f)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.TopCenter
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .widthIn(max = 680.dp)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.88f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             // Header: Account Info & Actions
             item {
                 Row(
@@ -433,6 +438,7 @@ fun AccountDetailBottomSheet(
             item {
                 Spacer(modifier = Modifier.height(28.dp))
             }
+        }
         }
     }
 }

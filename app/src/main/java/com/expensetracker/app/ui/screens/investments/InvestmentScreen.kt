@@ -4,9 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.Icons
@@ -80,13 +82,14 @@ fun InvestmentScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        ResponsiveContentContainer(maxWidth = 760.dp) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 // Portfolio Summary Card (M3 Expressive Hero Card)
@@ -322,6 +325,7 @@ fun InvestmentScreen(
                 Spacer(modifier = Modifier.height(70.dp))
             }
         }
+        }
     }
 
     // Add Investment Dialog (M3 Expressive Dialog)
@@ -331,7 +335,12 @@ fun InvestmentScreen(
             shape = ExpressiveDialogShape,
             title = { Text("Thêm Khoản Đầu Tư", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { nameInput = it },

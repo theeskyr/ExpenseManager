@@ -9,7 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -450,7 +452,12 @@ fun SettingsScreen(
                     shape = com.expensetracker.app.ui.theme.ExpressiveDialogShape,
                     title = { Text("Chọn Model AI Gemini", fontWeight = FontWeight.Bold) },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             GeminiManager.AVAILABLE_MODELS.forEach { (modelId, label) ->
                                 val isSelected = currentModel == modelId
                                 Surface(

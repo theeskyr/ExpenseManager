@@ -17,12 +17,15 @@ object ImageUtils {
     const val MAX_OCR_DIMENSION = 2048
 
     /**
-     * Tạo Uri tạm thời cho Camera chụp ảnh độ phân giải gốc cao nhất
+     * Tạo Uri tạm thời cho Camera chụp ảnh độ phân giải gốc cao nhất.
+     * Tự động dọn dẹp các tệp ảnh chụp tạm cũ (trên 2 tiếng) để tiết kiệm dung lượng bộ nhớ thiết bị.
      */
     fun createCameraTempUri(context: Context): Uri {
         val cacheDir = File(context.cacheDir, "camera")
         if (!cacheDir.exists()) {
             cacheDir.mkdirs()
+        } else {
+            cleanOldCameraCache(cacheDir)
         }
         val file = File(cacheDir, "receipt_capture_${System.currentTimeMillis()}.jpg")
         return FileProvider.getUriForFile(
@@ -30,6 +33,20 @@ object ImageUtils {
             "${context.packageName}.fileprovider",
             file
         )
+    }
+
+    /**
+     * Dọn dẹp các tệp tạm thời chụp ảnh hóa đơn cũ hơn 2 giờ để tránh đầy bộ nhớ máy
+     */
+    fun cleanOldCameraCache(cacheDir: File) {
+        try {
+            val threshold = System.currentTimeMillis() - (2 * 60 * 60 * 1000L) // 2 giờ
+            cacheDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.lastModified() < threshold) {
+                    file.delete()
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     /**

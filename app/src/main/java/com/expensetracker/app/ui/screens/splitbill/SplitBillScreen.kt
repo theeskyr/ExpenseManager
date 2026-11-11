@@ -1945,7 +1945,8 @@ fun AssignBillItemsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier
-            .fillMaxWidth()
+            .widthIn(max = 680.dp)
+            .fillMaxWidth(0.94f)
             .fillMaxHeight(0.9f),
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
         title = {

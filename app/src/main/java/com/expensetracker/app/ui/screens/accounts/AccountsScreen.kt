@@ -5,9 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -244,7 +246,12 @@ fun AccountsScreen(
             shape = ExpressiveDialogShape,
             title = { Text("Cập nhật số dư: ${acc.name}", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
                         "Nhập số dư thực tế hiện tại bạn đang có trong nguồn tiền này:",
                         fontSize = 12.sp,
@@ -334,7 +341,12 @@ fun AccountsScreen(
             shape = ExpressiveDialogShape,
             title = { Text("Thêm ví / tài khoản mới", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text("Gợi ý nhanh:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
