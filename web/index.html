@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Expense Manager - Quản Lý Chi Tiêu & Chia Tiền AI</title>
+  
+  <!-- PWA & iOS Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="ExpenseManager">
+  <meta name="theme-color" content="#10B981">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Tailwind CSS & Google Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons & Chart.js -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    /* Safe Area Padding for iOS Notch and Home Indicator */
+    .safe-top { padding-top: env(safe-area-inset-top, 16px); }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+
+  <!-- Main Responsive Container -->
+  <div class="mx-auto flex min-h-screen max-w-lg flex-col bg-slate-50 shadow-2xl safe-top">
+    
+    <!-- Top Header Bar -->
+    <header class="flex items-center justify-between border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sticky top-0 z-30">
+      <div class="flex items-center space-x-2">
+        <div class="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
+          <i data-lucide="wallet" class="h-5 w-5"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-extrabold text-slate-900 leading-none">ExpenseManager</h1>
+          <span class="text-[10px] font-bold text-emerald-600">AI Gemini Powered</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-1.5">
+        <button onclick="switchTab('ai')" title="Trợ lý AI" class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-50 text-purple-700 transition hover:bg-purple-100">
+          <i data-lucide="sparkles" class="h-4 w-4"></i>
+        </button>
+        <button onclick="switchTab('settings')" title="Cài đặt" class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200">
+          <i data-lucide="settings" class="h-4 w-4"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="main-content" class="flex-1 p-4 overflow-y-auto">
+      <!-- Dynamic Screen Rendered by app.js -->
+    </main>
+
+    <!-- Floating Navigation Bar (Mobile / Standalone) -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-100 backdrop-blur-lg safe-bottom">
+      <div class="mx-auto max-w-lg flex items-center justify-around px-2 py-1.5">
+        
+        <button id="nav-home" onclick="switchTab('home')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+          <i data-lucide="home" class="h-5 w-5"></i>
+          <span class="mt-0.5 text-[10px]">Trang chủ</span>
+        </button>
+
+        <button id="nav-stats" onclick="switchTab('stats')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+          <i data-lucide="pie-chart" class="h-5 w-5"></i>
+          <span class="mt-0.5 text-[10px]">Thống kê</span>
+        </button>
+
+        <!-- Quick Add FAB in Center -->
+        <button onclick="openModal('add-transaction-modal')" class="flex -mt-5 h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg transition active:scale-90 hover:bg-emerald-700">
+          <i data-lucide="plus" class="h-6 w-6"></i>
+        </button>
+
+        <button id="nav-split" onclick="switchTab('split')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+          <i data-lucide="users" class="h-5 w-5"></i>
+          <span class="mt-0.5 text-[10px]">Chia tiền</span>
+        </button>
+
+        <button id="nav-trips" onclick="switchTab('trips')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+          <i data-lucide="luggage" class="h-5 w-5"></i>
+          <span class="mt-0.5 text-[10px]">Chuyến đi</span>
+        </button>
+
+        <button id="nav-ai" onclick="switchTab('ai')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+          <i data-lucide="bot" class="h-5 w-5"></i>
+          <span class="mt-0.5 text-[10px]">Trợ lý AI</span>
+        </button>
+
+      </div>
+    </nav>
+
+  </div>
+
+  <!-- Modal: Add Transaction -->
+  <div id="add-transaction-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4 animate-in fade-in duration-200">
+      
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Ghi chép giao dịch mới</h3>
+        <button onclick="closeModal('add-transaction-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+
+      <!-- Type Switcher: Expense / Income -->
+      <div class="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 text-xs font-bold">
+        <button type="button" id="type-btn-expense" onclick="setModalTxType('EXPENSE')" class="rounded-xl py-2 bg-rose-600 text-white shadow-sm transition">Khoản chi (-)</button>
+        <button type="button" id="type-btn-income" onclick="setModalTxType('INCOME')" class="rounded-xl py-2 text-slate-600 transition">Khoản thu (+)</button>
+      </div>
+
+      <!-- Amount input with shortcut preview -->
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Số tiền (Hỗ trợ gõ tắt: 50k, 1.5tr)</label>
+        <div class="relative mt-1">
+          <input id="tx-amount" type="text" placeholder="Ví dụ: 45k hoặc 1.5tr" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-extrabold outline-none focus:border-emerald-500 text-slate-900" oninput="previewAmount(this.value)" />
+          <span id="amount-preview" class="absolute right-4 top-3.5 text-xs font-bold text-emerald-600"></span>
+        </div>
+      </div>
+
+      <!-- Category selection chips -->
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Danh mục</label>
+        <div id="category-chips" class="mt-1 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+          <!-- Filled dynamically -->
+        </div>
+      </div>
+
+      <!-- Account selection -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nguồn tiền / Ví</label>
+          <select id="tx-account" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800">
+            <!-- Filled dynamically -->
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ghi chú</label>
+          <input id="tx-note" type="text" placeholder="Ăn trưa, cafe..." class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800" />
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <button onclick="handleSaveTransaction()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg transition active:scale-95 hover:bg-emerald-700">
+        Lưu giao dịch
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/db.js"></script>
+  <script src="js/gemini.js"></script>
+  <script src="js/splitbill.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    // Modal Transaction UI logic
+    let currentModalType = 'EXPENSE';
+    let selectedCatId = 'food';
+
+    function setModalTxType(type) {
+      currentModalType = type;
+      const expBtn = document.getElementById('type-btn-expense');
+      const incBtn = document.getElementById('type-btn-income');
+      if (type === 'EXPENSE') {
+        expBtn.className = 'rounded-xl py-2 bg-rose-600 text-white shadow-sm transition';
+        incBtn.className = 'rounded-xl py-2 text-slate-600 transition';
+      } else {
+        incBtn.className = 'rounded-xl py-2 bg-emerald-600 text-white shadow-sm transition';
+        expBtn.className = 'rounded-xl py-2 text-slate-600 transition';
+      }
+      populateCategoryChips();
+    }
+
+    function previewAmount(val) {
+      const parsed = parseMoneyInput(val);
+      const prevEl = document.getElementById('amount-preview');
+      if (prevEl) {
+        prevEl.innerText = parsed > 0 ? formatMoney(parsed) : '';
+      }
+    }
+
+    function populateCategoryChips() {
+      const container = document.getElementById('category-chips');
+      if (!container) return;
+      const cats = state.categories.filter((c) => c.type === currentModalType);
+      container.innerHTML = cats.map((c) => `
+        <button type="button" onclick="selectCat('${c.id}')" id="chip-${c.id}" class="rounded-full px-3 py-1 text-xs font-semibold border transition ${c.id === selectedCatId ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+          ${c.name}
+        </button>
+      `).join('');
+    }
+
+    function selectCat(id) {
+      selectedCatId = id;
+      populateCategoryChips();
+    }
+
+    function populateAccountOptions() {
+      const sel = document.getElementById('tx-account');
+      if (!sel) return;
+      sel.innerHTML = state.accounts.map((a) => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join('');
+    }
+
+    // Hook when opening modal
+    const originalOpenModal = openModal;
+    openModal = function(id) {
+      if (id === 'add-transaction-modal') {
+        populateCategoryChips();
+        populateAccountOptions();
+        document.getElementById('tx-amount').value = '';
+        document.getElementById('amount-preview').innerText = '';
+        document.getElementById('tx-note').value = '';
+      }
+      originalOpenModal(id);
+      if (window.lucide) lucide.createIcons();
+    };
+
+    async function handleSaveTransaction() {
+      const amtStr = document.getElementById('tx-amount').value;
+      const amount = parseMoneyInput(amtStr);
+      if (amount <= 0) {
+        alert('Vui lòng nhập số tiền hợp lệ!');
+        return;
+      }
+      const accId = document.getElementById('tx-account').value;
+      const note = document.getElementById('tx-note').value;
+
+      await addTransaction({
+        amount,
+        type: currentModalType,
+        categoryId: selectedCatId,
+        accountId: accId,
+        note,
+        timestamp: Date.now()
+      });
+
+      closeModal('add-transaction-modal');
+    }
+  </script>
+
+</body>
+</html>
