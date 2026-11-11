@@ -319,6 +319,7 @@ fun MainAppNavHost(
                         navController.navigate(Screen.Accounts.route)
                     },
                     onNavigateToSplitBill = {
+                        viewModel.clearActiveTripForSplit()
                         navController.navigate(Screen.SplitBill.route)
                     },
                     onNavigateToTrips = {
@@ -388,6 +389,7 @@ fun MainAppNavHost(
                 SplitBillScreen(
                     viewModel = viewModel,
                     onNavigateBack = {
+                        viewModel.clearActiveTripForSplit()
                         if (!navController.popBackStack()) {
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(navController.graph.findStartDestination().id)
@@ -396,6 +398,7 @@ fun MainAppNavHost(
                         }
                     },
                     onNavigateToHome = {
+                        viewModel.clearActiveTripForSplit()
                         if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(navController.graph.findStartDestination().id)

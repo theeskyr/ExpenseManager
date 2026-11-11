@@ -57,6 +57,7 @@ import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CsvExporter
 import com.expensetracker.app.utils.CurrencyUtils
+import com.expensetracker.app.utils.ImageUtils
 import com.expensetracker.app.utils.SavedCsvResult
 import kotlinx.coroutines.launch
 
@@ -76,69 +77,32 @@ fun SplitBillScreen(
     val activeTripData by viewModel.activeTripForSplit.collectAsState()
 
     // Form states
-    var eventTitle by remember { mutableStateOf("Bữa ăn nhóm cuối tuần") }
-
+    val defaultTitle = "Bữa ăn nhóm cuối tuần"
     val defaultMe = remember { SplitMember(name = "Tôi", isCurrentUser = true) }
-    var members by remember {
-        mutableStateOf(
-            listOf(
-                defaultMe,
-                SplitMember(name = "Tuấn"),
-                SplitMember(name = "Linh")
-            )
+    val defaultMembers = remember {
+        listOf(
+            defaultMe,
+            SplitMember(name = "Tuấn"),
+            SplitMember(name = "Linh")
         )
     }
+
+    var eventTitle by remember { mutableStateOf(defaultTitle) }
+    var members by remember { mutableStateOf(defaultMembers) }
     var newMemberName by remember { mutableStateOf("") }
+    var originTripId by remember { mutableStateOf<String?>(null) }
 
     // Expenses list
     var expenseItems by remember { mutableStateOf(listOf<SplitExpenseItem>()) }
     var itemTitle by remember { mutableStateOf("") }
     var itemAmountStr by remember { mutableStateOf("") }
     var selectedPayerId by remember { mutableStateOf(defaultMe.id) }
-    var selectedSharerIds by remember { mutableStateOf(members.map { it.id }.toSet()) }
-
-    // Tự động nạp toàn bộ thông tin từ Chuyến đi (nếu đến từ tính năng Tính toán chuyến đi)
-    LaunchedEffect(activeTripData) {
-        activeTripData?.let { data ->
-            eventTitle = data.eventTitle
-            members = data.members
-            expenseItems = data.items
-            if (data.members.isNotEmpty()) {
-                selectedPayerId = data.members.first().id
-                selectedSharerIds = data.members.map { it.id }.toSet()
-            }
-        }
-    }
-
-    // Synchronize selectedSharerIds when members change
-    LaunchedEffect(members) {
-        val currentMemberIds = members.map { it.id }.toSet()
-        selectedSharerIds = selectedSharerIds.filter { it in currentMemberIds }.toSet()
-        if (selectedSharerIds.isEmpty()) {
-            selectedSharerIds = currentMemberIds
-        }
-    }
+    var selectedSharerIds by remember { mutableStateOf(defaultMembers.map { it.id }.toSet()) }
 
     // Calculation result
     var result by remember { mutableStateOf<SplitBillResult?>(null) }
     var isCalculatingAi by remember { mutableStateOf(false) }
-
-    // Khi chia tiền xong, nếu dữ liệu đến từ Chuyến đi, tự động lưu kết quả chia nợ vào chuyến đi để xem lại sau này
-    LaunchedEffect(result) {
-        val currentTrip = activeTripData
-        val currentRes = result
-        if (currentTrip != null && currentRes != null) {
-            val settlementLines = if (currentRes.settlements.isEmpty()) {
-                "Tất cả thành viên đã sòng phẳng, không ai nợ ai!"
-            } else {
-                currentRes.settlements.joinToString("\n") { s ->
-                    "• ${s.fromMemberName} ➜ chuyển ${s.toMemberName}: ${CurrencyUtils.formatVnd(s.amount)}"
-                }
-            }
-            val fullSummary = "Tổng chi phí chuyến đi: ${CurrencyUtils.formatVnd(currentRes.totalAmount)} (${currentTrip.members.size} người)\n$settlementLines"
-            viewModel.markTripCompleted(currentTrip.tripId, fullSummary)
-        }
-    }
+    var showBreakdownDetails by remember { mutableStateOf(false) }
 
     // Personal expense save state
     var selectedAccountId by remember { mutableStateOf<Long?>(null) }
@@ -146,6 +110,120 @@ fun SplitBillScreen(
     var hasSavedToPersonal by remember { mutableStateOf(false) }
     var savedCsvResult by remember { mutableStateOf<SavedCsvResult?>(null) }
     var showSavedSuccessDialog by remember { mutableStateOf(false) }
+
+    fun resetSplitBillState() {
+        originTripId = null
+        viewModel.clearActiveTripForSplit()
+        eventTitle = defaultTitle
+        members = defaultMembers
+        newMemberName = ""
+        expenseItems = emptyList()
+        itemTitle = ""
+        itemAmountStr = ""
+        selectedPayerId = defaultMe.id
+        selectedSharerIds = defaultMembers.map { it.id }.toSet()
+        result = null
+        isCalculatingAi = false
+        showBreakdownDetails = false
+        hasSavedToPersonal = false
+        savedCsvResult = null
+        showSavedSuccessDialog = false
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearActiveTripForSplit()
+        }
+    }
+
+    androidx.activity.compose.BackHandler {
+        resetSplitBillState()
+        onNavigateBack()
+    }
+
+    fun triggerCalculation(title: String, mems: List<SplitMember>, items: List<SplitExpenseItem>) {
+        if (items.isEmpty() || mems.isEmpty()) return
+        val calcResult = SplitBillCalculator.calculate(
+            eventTitle = title,
+            members = mems,
+            items = items
+        )
+        result = calcResult
+
+        isCalculatingAi = true
+        coroutineScope.launch {
+            try {
+                val itemsBreakdown = items.joinToString("\n") { item ->
+                    val payer = mems.firstOrNull { it.id == item.paidByMemberId }?.name ?: "Khác"
+                    val isAllSharers = item.splitAmongMemberIds.isEmpty() || item.splitAmongMemberIds.size == mems.size
+                    val sharerNames = if (isAllSharers) "tất cả mọi người" else mems.filter { it.id in item.splitAmongMemberIds }.joinToString(", ") { if (it.isCurrentUser) "Tôi" else it.name }
+                    "- ${item.title}: ${CurrencyUtils.formatVnd(item.amount)} (Do $payer thanh toán, chia cho: $sharerNames)"
+                }
+                val settlementsBreakdown = if (calcResult.settlements.isEmpty()) {
+                    "Tất cả mọi người đã thanh toán bằng nhau, không ai nợ ai!"
+                } else {
+                    calcResult.settlements.joinToString("\n") { s ->
+                        "- ${s.fromMemberName} ➜ chuyển cho ${s.toMemberName}: ${CurrencyUtils.formatVnd(s.amount)}"
+                    }
+                }
+
+                val (summary, messageTemplate, advice) = viewModel.geminiManager.analyzeSplitBillWithAi(
+                    eventTitle = title,
+                    totalAmount = calcResult.totalAmount,
+                    perPersonAvg = calcResult.perPersonAvg,
+                    myShare = calcResult.myActualShare,
+                    itemsBreakdown = itemsBreakdown,
+                    settlementsBreakdown = settlementsBreakdown
+                )
+
+                result = calcResult.copy(
+                    aiSummary = summary,
+                    aiMessageTemplate = messageTemplate,
+                    aiAdvice = advice
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isCalculatingAi = false
+            }
+        }
+    }
+
+    // Tự động nạp toàn bộ thông tin từ Chuyến đi (nếu đến từ tính năng Tính toán chuyến đi)
+    LaunchedEffect(activeTripData) {
+        activeTripData?.let { data ->
+            originTripId = data.tripId
+            eventTitle = data.eventTitle
+            members = data.members
+            expenseItems = data.items
+            if (data.members.isNotEmpty()) {
+                selectedPayerId = data.members.first().id
+                selectedSharerIds = data.members.map { it.id }.toSet()
+            }
+            if (data.autoCalculate && data.items.isNotEmpty() && data.members.isNotEmpty()) {
+                triggerCalculation(data.eventTitle, data.members, data.items)
+            }
+            // Giải phóng dữ liệu cầu nối để các lần truy cập độc lập sau không bị tải lại dữ liệu cũ
+            viewModel.clearActiveTripForSplit()
+        }
+    }
+
+    // Khi chia tiền xong, nếu dữ liệu đến từ Chuyến đi, tự động lưu kết quả chia nợ vào chuyến đi để xem lại sau này
+    LaunchedEffect(result) {
+        val currentTripId = originTripId
+        val currentRes = result
+        if (currentTripId != null && currentRes != null) {
+            val settlementLines = if (currentRes.settlements.isEmpty()) {
+                "Tất cả thành viên đã sòng phẳng, không ai nợ ai!"
+            } else {
+                currentRes.settlements.joinToString("\n") { s ->
+                    "• ${s.fromMemberName} ➜ chuyển ${s.toMemberName}: ${CurrencyUtils.formatVnd(s.amount)}"
+                }
+            }
+            val fullSummary = "Tổng chi phí chuyến đi: ${CurrencyUtils.formatVnd(currentRes.totalAmount)} (${members.size} người)\n$settlementLines"
+            viewModel.markTripCompleted(currentTripId, fullSummary)
+        }
+    }
 
     // Default account selection
     LaunchedEffect(accounts) {
@@ -187,11 +265,20 @@ fun SplitBillScreen(
         }
     }
 
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) {
-            processReceiptBitmap(bitmap)
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            tempCameraUri?.let { uri ->
+                val bitmap = ImageUtils.loadAndOptimizeBitmap(context, uri)
+                if (bitmap != null) {
+                    processReceiptBitmap(bitmap)
+                } else {
+                    Toast.makeText(context, "Không thể đọc ảnh chụp từ máy ảnh", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -199,17 +286,10 @@ fun SplitBillScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
-            try {
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val source = ImageDecoder.createSource(context.contentResolver, it)
-                    ImageDecoder.decodeBitmap(source) { decoder, _, _ -> decoder.isMutableRequired = true }
-                } else {
-                    @Suppress("DEPRECATION")
-                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
-                }
+            val bitmap = ImageUtils.loadAndOptimizeBitmap(context, it)
+            if (bitmap != null) {
                 processReceiptBitmap(bitmap)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } else {
                 Toast.makeText(context, "Không thể đọc ảnh từ thư viện", Toast.LENGTH_SHORT).show()
             }
         }
@@ -251,7 +331,10 @@ fun SplitBillScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        resetSplitBillState()
+                        onNavigateBack()
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Quay lại",
@@ -261,12 +344,8 @@ fun SplitBillScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        expenseItems = emptyList()
-                        result = null
-                        hasSavedToPersonal = false
-                        savedCsvResult = null
-                        showSavedSuccessDialog = false
-                        Toast.makeText(context, "Đã làm mới dữ liệu", Toast.LENGTH_SHORT).show()
+                        resetSplitBillState()
+                        Toast.makeText(context, "Đã làm mới dữ liệu chia tiền", Toast.LENGTH_SHORT).show()
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Làm mới", tint = TextSecondary)
                     }
@@ -331,723 +410,6 @@ fun SplitBillScreen(
                                 color = Color.White.copy(alpha = 0.88f)
                             )
                         }
-                    }
-                }
-            }
-
-            // Section 1: Event Name & Members
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveCardShape,
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "1. Tên buổi tiệc / Chuyến đi",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = eventTitle,
-                            onValueChange = { eventTitle = it },
-                            placeholder = { Text("Vd: Ăn lẩu Haidilao, Du lịch Đà Lạt...") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveItemShape,
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryGreen,
-                                unfocusedBorderColor = Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Members Section
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Thành viên tham gia (${members.size})",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = TextPrimary
-                            )
-
-                            // Quick add member button (tăng nhanh số người)
-                            TextButton(
-                                onClick = {
-                                    val nextNum = members.size
-                                    members = members + SplitMember(name = "Bạn $nextNum")
-                                }
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryGreen)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("+ Thêm nhanh bạn", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Members Chips
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            items(members, key = { it.id }) { member ->
-                                Surface(
-                                    shape = ExpressivePillShape,
-                                    color = if (member.isCurrentUser) PrimaryContainer else Color(0xFFF1F5F9),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (member.isCurrentUser) PrimaryGreen else Color(0xFFE2E8F0)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            if (member.isCurrentUser) Icons.Default.AccountCircle else Icons.Default.Person,
-                                            contentDescription = null,
-                                            tint = if (member.isCurrentUser) PrimaryGreenDark else Color(0xFF64748B),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = if (member.isCurrentUser) "${member.name} (Bạn)" else member.name,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (member.isCurrentUser) FontWeight.ExtraBold else FontWeight.Medium,
-                                            color = if (member.isCurrentUser) PrimaryGreenDark else TextPrimary
-                                        )
-                                        if (!member.isCurrentUser && members.size > 2) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Icon(
-                                                Icons.Default.Close,
-                                                contentDescription = "Xóa",
-                                                tint = Color(0xFF94A3B8),
-                                                modifier = Modifier
-                                                    .size(14.dp)
-                                                    .noRippleClickable {
-                                                        members = members.filter { it.id != member.id }
-                                                        // Update payer if needed
-                                                        if (selectedPayerId == member.id) {
-                                                            selectedPayerId = defaultMe.id
-                                                        }
-                                                    }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Add Custom Member Name Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = newMemberName,
-                                onValueChange = { newMemberName = it },
-                                placeholder = { Text("Tên bạn bè (vd: Tuấn, Linh, Nam...)", fontSize = 12.sp) },
-                                modifier = Modifier.weight(1f),
-                                shape = ExpressiveItemShape,
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = PrimaryGreen,
-                                    unfocusedBorderColor = Color(0xFFCBD5E1)
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (newMemberName.isNotBlank()) {
-                                        members = members + SplitMember(name = newMemberName.trim())
-                                        newMemberName = ""
-                                    }
-                                },
-                                enabled = newMemberName.isNotBlank(),
-                                shape = ExpressiveItemShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
-                            ) {
-                                Text("Thêm", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Section 2: Input Expenses (Khoản chi tiêu & Ai đã trả tiền)
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = ExpressiveCardShape,
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "2. Nhập các khoản chi tiêu",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = TextPrimary
-                        )
-                        Text(
-                            "Nhập tên món, số tiền và chọn ai là người đã thanh toán trước",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // AI Bill Scanner Card (Quét hóa đơn bằng AI)
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(ExpressiveItemShape)
-                                .noRippleClickable(enabled = !isScanningReceipt) { showSourceSheet = true },
-                            shape = ExpressiveItemShape,
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDD6FE))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(ExpressiveSquircleIconShape)
-                                        .background(Color(0xFF8B5CF6)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.CameraAlt,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "Chụp bill / Quét hóa đơn AI ⚡",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF5B21B6)
-                                    )
-                                    Text(
-                                        "AI tự bóc tách từng món ăn để bạn chọn ai ăn món nào!",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF6D28D9),
-                                        lineHeight = 15.sp
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                if (isScanningReceipt) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = Color(0xFF7C3AED),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Surface(
-                                        shape = ExpressivePillShape,
-                                        color = Color(0xFF7C3AED)
-                                    ) {
-                                        Text(
-                                            "Quét bill",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-                            Text(
-                                " HOẶC NHẬP TAY ",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF94A3B8),
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Expense Title
-                        OutlinedTextField(
-                            value = itemTitle,
-                            onValueChange = { itemTitle = it },
-                            label = { Text("Tên khoản chi (vd: Lẩu, Trà sữa, Taxi...)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveItemShape,
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryGreen,
-                                unfocusedBorderColor = Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Expense Amount
-                        OutlinedTextField(
-                            value = itemAmountStr,
-                            onValueChange = { itemAmountStr = it },
-                            label = { Text("Số tiền (hỗ trợ nhập 300k, 1.5tr hoặc 500000)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveItemShape,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = PrimaryGreen,
-                                unfocusedBorderColor = Color(0xFFCBD5E1)
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Who paid this expense?
-                        Text(
-                            "Ai là người đã trả khoản này?",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            items(members, key = { it.id }) { member ->
-                                val isSelected = selectedPayerId == member.id
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(ExpressivePillShape)
-                                        .noRippleClickable { selectedPayerId = member.id },
-                                    shape = ExpressivePillShape,
-                                    color = if (isSelected) Color(0xFF4F46E5) else Color(0xFFF1F5F9),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (isSelected) Color(0xFF4338CA) else Color(0xFFCBD5E1)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (member.isCurrentUser) "👑 Tôi trả" else "${member.name} trả",
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color.White else Color(0xFF475569)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Who shares this expense? (Những người tham gia vào khoản tiền này)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Ai tham gia khoản này? (${selectedSharerIds.size}/${members.size})",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = TextPrimary
-                            )
-
-                            val isAllSelected = selectedSharerIds.size == members.size
-                            TextButton(
-                                onClick = {
-                                    selectedSharerIds = if (isAllSelected) {
-                                        setOf(defaultMe.id)
-                                    } else {
-                                        members.map { it.id }.toSet()
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Icon(
-                                    if (isAllSelected) Icons.Default.CheckCircle else Icons.Default.DoneAll,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = PrimaryGreen
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    if (isAllSelected) "Đang chọn tất cả" else "Chọn tất cả",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryGreen
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 1. Chip "Tất cả"
-                            val isAllSelected = selectedSharerIds.size == members.size
-                            item {
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(ExpressivePillShape)
-                                        .noRippleClickable {
-                                            selectedSharerIds = if (isAllSelected) setOf(defaultMe.id) else members.map { it.id }.toSet()
-                                        },
-                                    shape = ExpressivePillShape,
-                                    color = if (isAllSelected) PrimaryGreen else Color(0xFFF1F5F9),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (isAllSelected) PrimaryGreenDark else Color(0xFFCBD5E1)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.DoneAll,
-                                            contentDescription = null,
-                                            tint = if (isAllSelected) Color.White else Color(0xFF64748B),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            "Tất cả (${members.size})",
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isAllSelected) Color.White else Color(0xFF475569)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // 2. Member chips
-                            items(members, key = { it.id }) { member ->
-                                val isSharer = selectedSharerIds.contains(member.id)
-                                Surface(
-                                    modifier = Modifier
-                                        .clip(ExpressivePillShape)
-                                        .noRippleClickable {
-                                            selectedSharerIds = if (isSharer) {
-                                                if (selectedSharerIds.size > 1) selectedSharerIds - member.id else selectedSharerIds
-                                            } else {
-                                                selectedSharerIds + member.id
-                                            }
-                                        },
-                                    shape = ExpressivePillShape,
-                                    color = if (isSharer) PrimaryContainer else Color(0xFFF8FAFC),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (isSharer) PrimaryGreen else Color(0xFFE2E8F0)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            if (isSharer) Icons.Default.Check else Icons.Default.Add,
-                                            contentDescription = null,
-                                            tint = if (isSharer) PrimaryGreenDark else Color(0xFF94A3B8),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (member.isCurrentUser) "${member.name} (Bạn)" else member.name,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSharer) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSharer) PrimaryGreenDark else Color(0xFF64748B)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Add Expense Button
-                        Button(
-                            onClick = {
-                                val amount = parseMoneyInput(itemAmountStr)
-                                if (amount != null && amount > 0) {
-                                    if (selectedSharerIds.isEmpty()) {
-                                        Toast.makeText(context, "Vui lòng chọn ít nhất 1 người tham gia chia khoản này!", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    val title = if (itemTitle.isNotBlank()) itemTitle.trim() else "Khoản chi #${expenseItems.size + 1}"
-                                    expenseItems = expenseItems + SplitExpenseItem(
-                                        title = title,
-                                        amount = amount,
-                                        paidByMemberId = selectedPayerId,
-                                        splitAmongMemberIds = selectedSharerIds.toList()
-                                    )
-                                    itemTitle = ""
-                                    itemAmountStr = ""
-                                    // Reset sharers to all
-                                    selectedSharerIds = members.map { it.id }.toSet()
-                                    // Invalidate previous calculation
-                                    result = null
-                                    hasSavedToPersonal = false
-                                } else {
-                                    Toast.makeText(context, "Vui lòng nhập số tiền hợp lệ (vd: 200k hoặc 200000)", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveItemShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Thêm khoản chi này", fontWeight = FontWeight.Bold)
-                        }
-
-                        // Added expenses list
-                        if (expenseItems.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider(color = Color(0xFFF1F5F9))
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                "Danh sách chi tiêu đã thêm (${expenseItems.size})",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = TextPrimary
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            expenseItems.forEachIndexed { index, item ->
-                                val payer = members.firstOrNull { it.id == item.paidByMemberId }
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    shape = ExpressiveItemShape,
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                item.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                color = TextPrimary
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Surface(
-                                                shape = ExpressivePillShape,
-                                                color = if (payer?.isCurrentUser == true) PrimaryContainer else Color(0xFFEDE9FE)
-                                            ) {
-                                                Text(
-                                                    text = if (payer?.isCurrentUser == true) "Người trả: Tôi (Bạn)" else "Người trả: ${payer?.name ?: "Khác"}",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (payer?.isCurrentUser == true) PrimaryGreenDark else Color(0xFF6D28D9),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(3.dp))
-                                            val isAllSharers = item.splitAmongMemberIds.isEmpty() || item.splitAmongMemberIds.size == members.size
-                                            val sharerText = if (isAllSharers) {
-                                                "Chia đều: Tất cả (${members.size} người)"
-                                            } else {
-                                                val sharerNames = members.filter { it.id in item.splitAmongMemberIds }
-                                                    .map { if (it.isCurrentUser) "Tôi" else it.name }
-                                                "Chia cho (${sharerNames.size} người): ${sharerNames.joinToString(", ")}"
-                                            }
-                                            Text(
-                                                text = sharerText,
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF64748B),
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                CurrencyUtils.formatVnd(item.amount),
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 14.sp,
-                                                color = ExpenseRed
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            IconButton(
-                                                onClick = {
-                                                    expenseItems = expenseItems.filterIndexed { i, _ -> i != index }
-                                                    result = null
-                                                    hasSavedToPersonal = false
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.DeleteOutline,
-                                                    contentDescription = "Xóa",
-                                                    tint = Color(0xFF94A3B8),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Total summary banner
-                            Spacer(modifier = Modifier.height(10.dp))
-                            val total = expenseItems.sumOf { it.amount }
-                            val avg = if (members.isNotEmpty()) total / members.size else 0.0
-
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = ExpressiveItemShape,
-                                color = Color(0xFFF0FDF4),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("Tổng chi tiêu buổi tiệc", fontSize = 11.sp, color = Color(0xFF166534))
-                                        Text(
-                                            CurrencyUtils.formatVnd(total),
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color(0xFF166534)
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("Chia đều (${members.size} người)", fontSize = 11.sp, color = Color(0xFF15803D))
-                                        Text(
-                                            "${CurrencyUtils.formatVnd(avg)} / người",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = PrimaryGreenDark
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Section 3: Action Button: Calculate & AI Analysis
-            item {
-                Button(
-                    onClick = {
-                        if (expenseItems.isEmpty()) {
-                            Toast.makeText(context, "Vui lòng thêm ít nhất 1 khoản chi tiêu", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        if (members.isEmpty()) {
-                            Toast.makeText(context, "Vui lòng có ít nhất 1 thành viên", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-
-                        // Step 1: Calculate deterministic math immediately
-                        val calcResult = SplitBillCalculator.calculate(
-                            eventTitle = eventTitle,
-                            members = members,
-                            items = expenseItems
-                        )
-                        result = calcResult
-
-                        // Step 2: Trigger AI in background
-                        isCalculatingAi = true
-                        coroutineScope.launch {
-                            try {
-                                val itemsBreakdown = expenseItems.joinToString("\n") { item ->
-                                    val payer = members.firstOrNull { it.id == item.paidByMemberId }?.name ?: "Khác"
-                                    val isAllSharers = item.splitAmongMemberIds.isEmpty() || item.splitAmongMemberIds.size == members.size
-                                    val sharerNames = if (isAllSharers) "tất cả mọi người" else members.filter { it.id in item.splitAmongMemberIds }.joinToString(", ") { if (it.isCurrentUser) "Tôi" else it.name }
-                                    "- ${item.title}: ${CurrencyUtils.formatVnd(item.amount)} (Do $payer thanh toán, chia cho: $sharerNames)"
-                                }
-                                val settlementsBreakdown = if (calcResult.settlements.isEmpty()) {
-                                    "Tất cả mọi người đã thanh toán bằng nhau, không ai nợ ai!"
-                                } else {
-                                    calcResult.settlements.joinToString("\n") { s ->
-                                        "- ${s.fromMemberName} ➜ chuyển cho ${s.toMemberName}: ${CurrencyUtils.formatVnd(s.amount)}"
-                                    }
-                                }
-
-                                val (summary, messageTemplate, advice) = viewModel.geminiManager.analyzeSplitBillWithAi(
-                                    eventTitle = eventTitle,
-                                    totalAmount = calcResult.totalAmount,
-                                    perPersonAvg = calcResult.perPersonAvg,
-                                    myShare = calcResult.myActualShare,
-                                    itemsBreakdown = itemsBreakdown,
-                                    settlementsBreakdown = settlementsBreakdown
-                                )
-
-                                result = calcResult.copy(
-                                    aiSummary = summary,
-                                    aiMessageTemplate = messageTemplate,
-                                    aiAdvice = advice
-                                )
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            } finally {
-                                isCalculatingAi = false
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = ExpressivePillShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                ) {
-                    if (isCalculatingAi) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("AI đang phân tích & tối ưu...", fontWeight = FontWeight.Bold, color = Color.White)
-                    } else {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Tính tiền & Phân chia cùng AI", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                     }
                 }
             }
@@ -1600,7 +962,10 @@ fun SplitBillScreen(
 
                         // Duy nhất 1 nút Trở về trang chủ sau khi chia tiền
                         FilledTonalButton(
-                            onClick = onNavigateToHome,
+                            onClick = {
+                                resetSplitBillState()
+                                onNavigateToHome()
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
@@ -1617,6 +982,744 @@ fun SplitBillScreen(
                         }
                     }
                 }
+            }
+
+            // Thẻ Mở rộng / Thu gọn chi tiết các khoản chi & thành viên khi đã có kết quả
+            if (result != null) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ExpressiveCardShape)
+                            .noRippleClickable { showBreakdownDetails = !showBreakdownDetails },
+                        shape = ExpressiveCardShape,
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(ExpressiveSquircleIconShape)
+                                        .background(Color(0xFFEDE9FE)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ReceiptLong,
+                                        contentDescription = null,
+                                        tint = Color(0xFF6D28D9),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        "Xem lại ${expenseItems.size} khoản chi & ${members.size} thành viên",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        if (showBreakdownDetails) "Nhấn để thu gọn danh sách" else "Nhấn để kiểm tra hoặc thêm/bớt khoản chi",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                            }
+                            Icon(
+                                if (showBreakdownDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (result == null || showBreakdownDetails) {
+            // Section 1: Event Name & Members
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "1. Tên buổi tiệc / Chuyến đi",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = eventTitle,
+                            onValueChange = { eventTitle = it },
+                            placeholder = { Text("Vd: Ăn lẩu Haidilao, Du lịch Đà Lạt...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveItemShape,
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Members Section
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Thành viên tham gia (${members.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = TextPrimary
+                            )
+
+                            // Quick add member button (tăng nhanh số người)
+                            TextButton(
+                                onClick = {
+                                    val nextNum = members.size
+                                    members = members + SplitMember(name = "Bạn $nextNum")
+                                }
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryGreen)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+ Thêm nhanh bạn", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryGreen)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Members Chips
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            items(members, key = { it.id }) { member ->
+                                Surface(
+                                    shape = ExpressivePillShape,
+                                    color = if (member.isCurrentUser) PrimaryContainer else Color(0xFFF1F5F9),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (member.isCurrentUser) PrimaryGreen else Color(0xFFE2E8F0)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            if (member.isCurrentUser) Icons.Default.AccountCircle else Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = if (member.isCurrentUser) PrimaryGreenDark else Color(0xFF64748B),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = if (member.isCurrentUser) "${member.name} (Bạn)" else member.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (member.isCurrentUser) FontWeight.ExtraBold else FontWeight.Medium,
+                                            color = if (member.isCurrentUser) PrimaryGreenDark else TextPrimary
+                                        )
+                                        if (!member.isCurrentUser && members.size > 2) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Xóa",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .noRippleClickable {
+                                                        members = members.filter { it.id != member.id }
+                                                        // Update payer if needed
+                                                        if (selectedPayerId == member.id) {
+                                                            selectedPayerId = defaultMe.id
+                                                        }
+                                                    }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Add Custom Member Name Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newMemberName,
+                                onValueChange = { newMemberName = it },
+                                placeholder = { Text("Tên bạn bè (vd: Tuấn, Linh, Nam...)", fontSize = 12.sp) },
+                                modifier = Modifier.weight(1f),
+                                shape = ExpressiveItemShape,
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = PrimaryGreen,
+                                    unfocusedBorderColor = Color(0xFFCBD5E1)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (newMemberName.isNotBlank()) {
+                                        members = members + SplitMember(name = newMemberName.trim())
+                                        newMemberName = ""
+                                    }
+                                },
+                                enabled = newMemberName.isNotBlank(),
+                                shape = ExpressiveItemShape,
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                            ) {
+                                Text("Thêm", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section 2: Input Expenses (Khoản chi tiêu & Ai đã trả tiền)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveCardShape,
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "2. Nhập các khoản chi tiêu",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
+                        Text(
+                            "Nhập tên món, số tiền và chọn ai là người đã thanh toán trước",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // AI Bill Scanner Card (Quét hóa đơn bằng AI)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ExpressiveItemShape)
+                                .noRippleClickable(enabled = !isScanningReceipt) { showSourceSheet = true },
+                            shape = ExpressiveItemShape,
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDD6FE))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(ExpressiveSquircleIconShape)
+                                        .background(Color(0xFF8B5CF6)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.CameraAlt,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Chụp bill / Quét hóa đơn AI ⚡",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF5B21B6)
+                                    )
+                                    Text(
+                                        "AI tự bóc tách từng món ăn để bạn chọn ai ăn món nào!",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF6D28D9),
+                                        lineHeight = 15.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                if (isScanningReceipt) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color(0xFF7C3AED),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Surface(
+                                        shape = ExpressivePillShape,
+                                        color = Color(0xFF7C3AED)
+                                    ) {
+                                        Text(
+                                            "Quét bill",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                            Text(
+                                " HOẶC NHẬP TAY ",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Expense Title
+                        OutlinedTextField(
+                            value = itemTitle,
+                            onValueChange = { itemTitle = it },
+                            label = { Text("Tên khoản chi (vd: Lẩu, Trà sữa, Taxi...)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveItemShape,
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Expense Amount
+                        OutlinedTextField(
+                            value = itemAmountStr,
+                            onValueChange = { itemAmountStr = it },
+                            label = { Text("Số tiền (hỗ trợ nhập 300k, 1.5tr hoặc 500000)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveItemShape,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = PrimaryGreen,
+                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Who paid this expense?
+                        Text(
+                            "Ai là người đã trả khoản này?",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            items(members, key = { it.id }) { member ->
+                                val isSelected = selectedPayerId == member.id
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable { selectedPayerId = member.id },
+                                    shape = ExpressivePillShape,
+                                    color = if (isSelected) Color(0xFF4F46E5) else Color(0xFFF1F5F9),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSelected) Color(0xFF4338CA) else Color(0xFFCBD5E1)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (member.isCurrentUser) "👑 Tôi trả" else "${member.name} trả",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.White else Color(0xFF475569)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Who shares this expense? (Những người tham gia vào khoản tiền này)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Ai tham gia khoản này? (${selectedSharerIds.size}/${members.size})",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = TextPrimary
+                            )
+
+                            val isAllSelected = selectedSharerIds.size == members.size
+                            TextButton(
+                                onClick = {
+                                    selectedSharerIds = if (isAllSelected) {
+                                        setOf(defaultMe.id)
+                                    } else {
+                                        members.map { it.id }.toSet()
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    if (isAllSelected) Icons.Default.CheckCircle else Icons.Default.DoneAll,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = PrimaryGreen
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (isAllSelected) "Đang chọn tất cả" else "Chọn tất cả",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryGreen
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 1. Chip "Tất cả"
+                            val isAllSelected = selectedSharerIds.size == members.size
+                            item {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable {
+                                            selectedSharerIds = if (isAllSelected) setOf(defaultMe.id) else members.map { it.id }.toSet()
+                                        },
+                                    shape = ExpressivePillShape,
+                                    color = if (isAllSelected) PrimaryGreen else Color(0xFFF1F5F9),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isAllSelected) PrimaryGreenDark else Color(0xFFCBD5E1)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.DoneAll,
+                                            contentDescription = null,
+                                            tint = if (isAllSelected) Color.White else Color(0xFF64748B),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "Tất cả (${members.size})",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isAllSelected) Color.White else Color(0xFF475569)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 2. Member chips
+                            items(members, key = { it.id }) { member ->
+                                val isSharer = selectedSharerIds.contains(member.id)
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(ExpressivePillShape)
+                                        .noRippleClickable {
+                                            selectedSharerIds = if (isSharer) {
+                                                if (selectedSharerIds.size > 1) selectedSharerIds - member.id else selectedSharerIds
+                                            } else {
+                                                selectedSharerIds + member.id
+                                            }
+                                        },
+                                    shape = ExpressivePillShape,
+                                    color = if (isSharer) PrimaryContainer else Color(0xFFF8FAFC),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSharer) PrimaryGreen else Color(0xFFE2E8F0)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            if (isSharer) Icons.Default.Check else Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = if (isSharer) PrimaryGreenDark else Color(0xFF94A3B8),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (member.isCurrentUser) "${member.name} (Bạn)" else member.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSharer) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSharer) PrimaryGreenDark else Color(0xFF64748B)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Add Expense Button
+                        Button(
+                            onClick = {
+                                val amount = CurrencyUtils.parseMoneyInput(itemAmountStr)
+                                if (amount != null && amount > 0) {
+                                    if (selectedSharerIds.isEmpty()) {
+                                        Toast.makeText(context, "Vui lòng chọn ít nhất 1 người tham gia chia khoản này!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    val title = if (itemTitle.isNotBlank()) itemTitle.trim() else "Khoản chi #${expenseItems.size + 1}"
+                                    expenseItems = expenseItems + SplitExpenseItem(
+                                        title = title,
+                                        amount = amount,
+                                        paidByMemberId = selectedPayerId,
+                                        splitAmongMemberIds = selectedSharerIds.toList()
+                                    )
+                                    itemTitle = ""
+                                    itemAmountStr = ""
+                                    // Reset sharers to all
+                                    selectedSharerIds = members.map { it.id }.toSet()
+                                    // Invalidate previous calculation
+                                    result = null
+                                    hasSavedToPersonal = false
+                                } else {
+                                    Toast.makeText(context, "Vui lòng nhập số tiền hợp lệ (vd: 200k hoặc 200000)", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = ExpressiveItemShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Thêm khoản chi này", fontWeight = FontWeight.Bold)
+                        }
+
+                        // Added expenses list
+                        if (expenseItems.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = Color(0xFFF1F5F9))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Text(
+                                "Danh sách chi tiêu đã thêm (${expenseItems.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            expenseItems.forEachIndexed { index, item ->
+                                val payer = members.firstOrNull { it.id == item.paidByMemberId }
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    shape = ExpressiveItemShape,
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                item.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = TextPrimary
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Surface(
+                                                shape = ExpressivePillShape,
+                                                color = if (payer?.isCurrentUser == true) PrimaryContainer else Color(0xFFEDE9FE)
+                                            ) {
+                                                Text(
+                                                    text = if (payer?.isCurrentUser == true) "Người trả: Tôi (Bạn)" else "Người trả: ${payer?.name ?: "Khác"}",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (payer?.isCurrentUser == true) PrimaryGreenDark else Color(0xFF6D28D9),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            val isAllSharers = item.splitAmongMemberIds.isEmpty() || item.splitAmongMemberIds.size == members.size
+                                            val sharerText = if (isAllSharers) {
+                                                "Chia đều: Tất cả (${members.size} người)"
+                                            } else {
+                                                val sharerNames = members.filter { it.id in item.splitAmongMemberIds }
+                                                    .map { if (it.isCurrentUser) "Tôi" else it.name }
+                                                "Chia cho (${sharerNames.size} người): ${sharerNames.joinToString(", ")}"
+                                            }
+                                            Text(
+                                                text = sharerText,
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF64748B),
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                CurrencyUtils.formatVnd(item.amount),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 14.sp,
+                                                color = ExpenseRed
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            IconButton(
+                                                onClick = {
+                                                    expenseItems = expenseItems.filterIndexed { i, _ -> i != index }
+                                                    result = null
+                                                    hasSavedToPersonal = false
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.DeleteOutline,
+                                                    contentDescription = "Xóa",
+                                                    tint = Color(0xFF94A3B8),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Total summary banner
+                            Spacer(modifier = Modifier.height(10.dp))
+                            val total = expenseItems.sumOf { it.amount }
+                            val avg = if (members.isNotEmpty()) total / members.size else 0.0
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = ExpressiveItemShape,
+                                color = Color(0xFFF0FDF4),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Tổng chi tiêu buổi tiệc", fontSize = 11.sp, color = Color(0xFF166534))
+                                        Text(
+                                            CurrencyUtils.formatVnd(total),
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF166534)
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("Chia đều (${members.size} người)", fontSize = 11.sp, color = Color(0xFF15803D))
+                                        Text(
+                                            "${CurrencyUtils.formatVnd(avg)} / người",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = PrimaryGreenDark
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            // Section 3: Action Button: Calculate & AI Analysis
+            item {
+                Button(
+                    onClick = {
+                        if (expenseItems.isEmpty()) {
+                            Toast.makeText(context, "Vui lòng thêm ít nhất 1 khoản chi tiêu", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        if (members.isEmpty()) {
+                            Toast.makeText(context, "Vui lòng có ít nhất 1 thành viên", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        triggerCalculation(eventTitle, members, expenseItems)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = ExpressivePillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6D28D9)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    if (isCalculatingAi) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("AI đang phân tích & tối ưu...", fontWeight = FontWeight.Bold, color = Color.White)
+                    } else {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (result != null) "Tính toán lại kết quả ⚡" else "Tính tiền & Phân chia cùng AI",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
             }
 
             item {
@@ -1653,7 +1756,9 @@ fun SplitBillScreen(
                             .clip(ExpressiveItemShape)
                             .noRippleClickable {
                                 showSourceSheet = false
-                                cameraLauncher.launch(null)
+                                val newUri = ImageUtils.createCameraTempUri(context)
+                                tempCameraUri = newUri
+                                cameraLauncher.launch(newUri)
                             },
                         shape = ExpressiveItemShape,
                         color = Color(0xFFF5F3FF),
@@ -2137,44 +2242,4 @@ fun AssignBillItemsDialog(
         dismissButton = {},
         shape = ExpressiveCardShape
     )
-}
-
-@Composable
-private fun Modifier.noRippleClickable(
-    enabled: Boolean = true,
-    onClick: () -> Unit
-): Modifier = this.clickable(
-    interactionSource = remember { MutableInteractionSource() },
-    indication = null,
-    enabled = enabled,
-    onClick = onClick
-)
-
-private fun parseMoneyInput(raw: String): Double? {
-    val clean = raw.trim().lowercase()
-    if (clean.isBlank()) return null
-
-    val kIdx = clean.indexOf('k')
-    if (kIdx != -1) {
-        val num = clean.substring(0, kIdx).filter { it.isDigit() || it == '.' || it == ',' }
-            .replace(",", ".").toDoubleOrNull()
-        if (num != null) return num * 1000
-    }
-
-    val trIdx = clean.indexOf("tr")
-    if (trIdx != -1) {
-        val num = clean.substring(0, trIdx).filter { it.isDigit() || it == '.' || it == ',' }
-            .replace(",", ".").toDoubleOrNull()
-        if (num != null) return num * 1000000
-    }
-
-    val cuIdx = clean.indexOf("củ")
-    if (cuIdx != -1) {
-        val num = clean.substring(0, cuIdx).filter { it.isDigit() || it == '.' || it == ',' }
-            .replace(",", ".").toDoubleOrNull()
-        if (num != null) return num * 1000000
-    }
-
-    val numeric = clean.filter { it.isDigit() }.toDoubleOrNull()
-    return numeric
 }

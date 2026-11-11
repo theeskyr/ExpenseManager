@@ -46,7 +46,8 @@ data class TripSplitData(
     val tripId: String,
     val eventTitle: String,
     val members: List<SplitMember>,
-    val items: List<SplitExpenseItem>
+    val items: List<SplitExpenseItem>,
+    val autoCalculate: Boolean = true
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -575,7 +576,7 @@ class ExpenseViewModel(
     /**
      * Nạp toàn bộ dữ liệu từ Chuyến đi sang Chia tiền bằng AI
      */
-    fun prepareSplitBillFromTrip(trip: TripEntity, expenses: List<TripExpenseEntity>) {
+    fun prepareSplitBillFromTrip(trip: TripEntity, expenses: List<TripExpenseEntity>, autoCalculate: Boolean = true) {
         val members = TripJsonUtils.jsonToMembers(trip.membersJson)
         val items = expenses.map { exp ->
             val sharers = TripJsonUtils.jsonToStringList(exp.sharerMemberIdsJson)
@@ -592,7 +593,8 @@ class ExpenseViewModel(
             tripId = trip.id,
             eventTitle = trip.title,
             members = members,
-            items = items
+            items = items,
+            autoCalculate = autoCalculate
         )
     }
 

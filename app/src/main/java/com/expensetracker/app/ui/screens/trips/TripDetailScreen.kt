@@ -1,6 +1,14 @@
 package com.expensetracker.app.ui.screens.trips
 
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,12 +37,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.expensetracker.app.data.local.entity.TripEntity
 import com.expensetracker.app.data.local.entity.TripExpenseEntity
+import com.expensetracker.app.data.model.ScannedReceiptItem
 import com.expensetracker.app.data.model.SplitMember
+import com.expensetracker.app.ui.screens.splitbill.AssignBillItemsDialog
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.utils.CurrencyUtils
-import com.expensetracker.app.utils.DateUtils
+import com.expensetracker.app.utils.ImageUtils
 import com.expensetracker.app.utils.TripJsonUtils
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,11 +56,19 @@ fun TripDetailScreen(
     onNavigateToSplitBill: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val trip by viewModel.getTripByIdFlow(tripId).collectAsState(initial = null)
     val expenses by viewModel.getTripExpenses(tripId).collectAsState(initial = emptyList())
 
     var selectedDayIndex by remember { mutableStateOf(1) }
     var showAddExpenseDialog by remember { mutableStateOf(false) }
+
+    // Bill Scanning States (Quét hóa đơn bill bằng AI cho chuyến đi)
+    var isScanningReceipt by remember { mutableStateOf(false) }
+    var scannedItems by remember { mutableStateOf<List<ScannedReceiptItem>>(emptyList()) }
+    var showAssignDialog by remember { mutableStateOf(false) }
+    var scannedBillPayerId by remember { mutableStateOf("") }
+    var showSourceSheet by remember { mutableStateOf(false) }
 
     val currentTrip = trip
     if (currentTrip == null) {
@@ -61,6 +80,62 @@ fun TripDetailScreen(
 
     val members = remember(currentTrip.membersJson) { TripJsonUtils.jsonToMembers(currentTrip.membersJson) }
     val memberMap = remember(members) { members.associateBy { it.id } }
+
+    // Bill Scanner Processing function
+    fun processReceiptBitmap(bitmap: Bitmap) {
+        isScanningReceipt = true
+        coroutineScope.launch {
+            try {
+                val parsed = viewModel.geminiManager.parseReceiptForSplitBill(bitmap)
+                if (parsed.isNotEmpty()) {
+                    scannedItems = parsed.map { it.copy(assignedMemberIds = emptySet()) }
+                    scannedBillPayerId = members.firstOrNull()?.id ?: ""
+                    showAssignDialog = true
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Không nhận diện được món ăn nào từ hóa đơn. Vui lòng thử lại với ảnh rõ nét hơn!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Lỗi khi quét hóa đơn: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isScanningReceipt = false
+            }
+        }
+    }
+
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            tempCameraUri?.let { uri ->
+                val bitmap = ImageUtils.loadAndOptimizeBitmap(context, uri)
+                if (bitmap != null) {
+                    processReceiptBitmap(bitmap)
+                } else {
+                    Toast.makeText(context, "Không thể đọc ảnh chụp từ máy ảnh", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            val bitmap = ImageUtils.loadAndOptimizeBitmap(context, it)
+            if (bitmap != null) {
+                processReceiptBitmap(bitmap)
+            } else {
+                Toast.makeText(context, "Không thể đọc ảnh từ thư viện", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Calculate maximum day index present, at least 1
     val maxDayPresent = remember(expenses) { (expenses.maxOfOrNull { it.dayIndex } ?: 1).coerceAtLeast(1) }
@@ -268,7 +343,7 @@ fun TripDetailScreen(
                     }
                 }
 
-                // Current Day Header & Add Button
+                // Current Day Header & Actions (Quét Bill AI + Thêm thủ công)
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -276,35 +351,63 @@ fun TripDetailScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    "Tổng chi Ngày $selectedDayIndex",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                                Text(
-                                    text = CurrencyUtils.formatVnd(currentDayTotal),
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (currentDayTotal > 0) Color(0xFF0284C7) else TextPrimary
-                                )
-                            }
-
-                            Button(
-                                onClick = { showAddExpenseDialog = true },
-                                shape = ExpressivePillShape,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Thêm chi tiêu Ngày $selectedDayIndex", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Column {
+                                    Text(
+                                        "Tổng chi Ngày $selectedDayIndex",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = CurrencyUtils.formatVnd(currentDayTotal),
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (currentDayTotal > 0) Color(0xFF0284C7) else TextPrimary
+                                    )
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Nút Quét bill AI nhanh
+                                    FilledTonalButton(
+                                        onClick = { showSourceSheet = true },
+                                        shape = ExpressivePillShape,
+                                        colors = ButtonDefaults.filledTonalButtonColors(
+                                            containerColor = Color(0xFFEDE9FE),
+                                            contentColor = Color(0xFF6D28D9)
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                        enabled = !isScanningReceipt
+                                    ) {
+                                        if (isScanningReceipt) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                color = Color(0xFF6D28D9),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Quét bill AI ⚡", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+
+                                    // Nút Thêm thủ công
+                                    Button(
+                                        onClick = { showAddExpenseDialog = true },
+                                        shape = ExpressivePillShape,
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Thêm chi tiêu", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+                                }
                             }
                         }
                     }
@@ -391,6 +494,8 @@ fun TripDetailScreen(
                                 Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(28.dp))
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text("Chưa có khoản chi nào trong Ngày $selectedDayIndex", fontSize = 12.sp, color = TextSecondary)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("Quét hóa đơn AI hoặc nhập tay để thêm khoản chi!", fontSize = 11.sp, color = Color(0xFF0284C7), fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -426,7 +531,7 @@ fun TripDetailScreen(
                                         color = TextPrimary
                                     )
                                     Text(
-                                        "Tự động lấy toàn bộ ${expenses.size} khoản chi của cả chuyến đi sang AI",
+                                        "Tự động tính toán và cho kết quả chia tiền ngay lập tức",
                                         fontSize = 11.sp,
                                         color = TextSecondary
                                     )
@@ -459,8 +564,8 @@ fun TripDetailScreen(
                                         Toast.makeText(context, "Vui lòng nhập ít nhất 1 khoản chi tiêu cho chuyến đi trước khi chia tiền!", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
-                                    // Chuyển toàn bộ dữ liệu chuyến đi sang màn hình Chia tiền AI
-                                    viewModel.prepareSplitBillFromTrip(currentTrip, expenses)
+                                    // Chuyển toàn bộ dữ liệu chuyến đi sang màn hình Chia tiền AI và tự động tính toán luôn
+                                    viewModel.prepareSplitBillFromTrip(currentTrip, expenses, autoCalculate = true)
                                     onNavigateToSplitBill()
                                 },
                                 modifier = Modifier
@@ -488,13 +593,147 @@ fun TripDetailScreen(
         }
     }
 
-    // Dialog Add Expense for Day
+    // Source Sheet Dialog (Camera or Gallery)
+    if (showSourceSheet) {
+        AlertDialog(
+            onDismissRequest = { showSourceSheet = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, tint = Color(0xFF6D28D9))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Quét hóa đơn cho Ngày $selectedDayIndex", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Chọn cách tải ảnh hóa đơn/bill để AI tự động bóc tách danh sách món ăn và số tiền:",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Option 1: Take Photo with Camera
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ExpressiveItemShape)
+                            .noRippleClickable {
+                                showSourceSheet = false
+                                val newUri = ImageUtils.createCameraTempUri(context)
+                                tempCameraUri = newUri
+                                cameraLauncher.launch(newUri)
+                            },
+                        shape = ExpressiveItemShape,
+                        color = Color(0xFFF5F3FF),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDD6FE))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF8B5CF6)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Chụp ảnh hóa đơn mới", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF4C1D95))
+                                Text("Mở camera chụp trực tiếp bill tính tiền", fontSize = 11.sp, color = Color(0xFF6D28D9))
+                            }
+                        }
+                    }
+
+                    // Option 2: Pick from Gallery
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ExpressiveItemShape)
+                            .noRippleClickable {
+                                showSourceSheet = false
+                                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                        shape = ExpressiveItemShape,
+                        color = Color(0xFFF0FDF4),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBF7D0))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryGreen),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Chọn ảnh từ Thư viện", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF166534))
+                                Text("Tải ảnh chụp bill đã lưu trong máy", fontSize = 11.sp, color = Color(0xFF15803D))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSourceSheet = false }) {
+                    Text("Đóng", color = Color(0xFF64748B))
+                }
+            },
+            shape = ExpressiveCardShape
+        )
+    }
+
+    // Assign Bill Items Dialog (Mở sau khi quét bill AI thành công)
+    if (showAssignDialog) {
+        AssignBillItemsDialog(
+            items = scannedItems,
+            members = members,
+            defaultPayerId = scannedBillPayerId.ifBlank { members.firstOrNull()?.id ?: "" },
+            onDismiss = { showAssignDialog = false },
+            onConfirm = { updatedItems, billPayerId ->
+                val payerName = memberMap[billPayerId]?.name ?: "Tôi"
+                updatedItems.forEach { item ->
+                    val sharers = if (item.assignedMemberIds.isEmpty()) members.map { it.id } else item.assignedMemberIds.toList()
+                    val formattedTitle = if (item.quantity > 1) "${item.name} (x${item.quantity})" else item.name
+                    viewModel.addTripExpense(
+                        tripId = currentTrip.id,
+                        dayIndex = selectedDayIndex,
+                        title = formattedTitle,
+                        amount = item.amount,
+                        payerMemberId = billPayerId,
+                        payerMemberName = payerName,
+                        sharerMemberIds = sharers,
+                        note = "Quét từ hóa đơn AI"
+                    )
+                }
+                showAssignDialog = false
+                Toast.makeText(context, "Đã thêm ${updatedItems.size} món từ hóa đơn vào Ngày $selectedDayIndex!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Dialog Add Expense for Day (Hỗ trợ nhập tắt k, tr, củ và quét bill trực tiếp)
     if (showAddExpenseDialog) {
         AddTripExpenseDialog(
             dayIndex = selectedDayIndex,
             members = members,
+            onScanReceipt = {
+                showAddExpenseDialog = false
+                showSourceSheet = true
+            },
             onDismiss = { showAddExpenseDialog = false },
-            onAdd = { title, amount, payerId, payerName, sharerIds, note ->
+            onAdd = { title, amount, payerId, payerName, sharerIds, note, keepAdding ->
                 viewModel.addTripExpense(
                     tripId = currentTrip.id,
                     dayIndex = selectedDayIndex,
@@ -505,8 +744,10 @@ fun TripDetailScreen(
                     sharerMemberIds = sharerIds,
                     note = note
                 )
-                showAddExpenseDialog = false
-                Toast.makeText(context, "Đã thêm khoản chi Ngày $selectedDayIndex", Toast.LENGTH_SHORT).show()
+                if (!keepAdding) {
+                    showAddExpenseDialog = false
+                }
+                Toast.makeText(context, "Đã thêm: $title (${CurrencyUtils.formatVnd(amount)})", Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -516,8 +757,9 @@ fun TripDetailScreen(
 fun AddTripExpenseDialog(
     dayIndex: Int,
     members: List<SplitMember>,
+    onScanReceipt: () -> Unit,
     onDismiss: () -> Unit,
-    onAdd: (String, Double, String, String, List<String>, String) -> Unit
+    onAdd: (title: String, amount: Double, payerId: String, payerName: String, sharers: List<String>, note: String, keepAdding: Boolean) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
@@ -545,36 +787,76 @@ fun AddTripExpenseDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Banner Quét bill AI
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ExpressiveItemShape)
+                        .noRippleClickable { onScanReceipt() },
+                    shape = ExpressiveItemShape,
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFDDD6FE))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(ExpressiveSquircleIconShape)
+                                .background(Color(0xFF8B5CF6)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Chụp bill / Quét hóa đơn AI ⚡", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF5B21B6))
+                            Text("AI tự bóc tách món & chia từng người", fontSize = 10.sp, color = Color(0xFF6D28D9))
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                    Text(" HOẶC NHẬP TAY ", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8), modifier = Modifier.padding(horizontal = 6.dp))
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Tên khoản chi *") },
-                    placeholder = { Text("Ví dụ: Ăn lẩu gà lá é, Vé cáp treo...") },
-                    shape = ExpressiveInputShape,
+                    placeholder = { Text("Ăn lẩu, Cafe, Vé tham quan...") },
+                    shape = ExpressiveItemShape,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = amountStr,
-                    onValueChange = { amountStr = CurrencyUtils.formatInputAmount(it) },
-                    label = { Text("Số tiền (₫) *") },
-                    placeholder = { Text("Ví dụ: 350.000") },
-                    shape = ExpressiveInputShape,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    onValueChange = { amountStr = it },
+                    label = { Text("Số tiền * (nhập 300k, 1.5tr hoặc 500000)") },
+                    placeholder = { Text("Ví dụ: 350k, 1.2tr...") },
+                    shape = ExpressiveItemShape,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 // Who paid?
-                Text("Ai đã trả trước?", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("Ai đã thanh toán?", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(members, key = { it.id }) { member ->
                         val isSelected = selectedPayerId == member.id
                         Surface(
                             modifier = Modifier
                                 .clip(ExpressivePillShape)
-                                .clickable { selectedPayerId = member.id },
+                                .noRippleClickable { selectedPayerId = member.id },
                             shape = ExpressivePillShape,
                             color = if (isSelected) Color(0xFF0284C7) else Color(0xFFF1F5F9),
                             border = androidx.compose.foundation.BorderStroke(
@@ -601,7 +883,7 @@ fun AddTripExpenseDialog(
                         Surface(
                             modifier = Modifier
                                 .clip(ExpressivePillShape)
-                                .clickable {
+                                .noRippleClickable {
                                     selectedSharerIds = if (isAllSelected) setOf(members.first().id) else members.map { it.id }.toSet()
                                 },
                             shape = ExpressivePillShape,
@@ -626,7 +908,7 @@ fun AddTripExpenseDialog(
                         Surface(
                             modifier = Modifier
                                 .clip(ExpressivePillShape)
-                                .clickable {
+                                .noRippleClickable {
                                     selectedSharerIds = if (isSharer) {
                                         if (selectedSharerIds.size > 1) selectedSharerIds - member.id else selectedSharerIds
                                     } else {
@@ -641,7 +923,7 @@ fun AddTripExpenseDialog(
                             )
                         ) {
                             Text(
-                                text = member.name,
+                                text = if (member.isCurrentUser) "Tôi" else member.name,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSharer) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSharer) PrimaryGreenDark else Color(0xFF64748B),
@@ -653,26 +935,47 @@ fun AddTripExpenseDialog(
             }
         },
         confirmButton = {
-            val amount = CurrencyUtils.parseAmount(amountStr)
-            val isValid = title.isNotBlank() && amount > 0 && selectedPayerId.isNotBlank() && selectedSharerIds.isNotEmpty()
+            val amount = CurrencyUtils.parseMoneyInput(amountStr)
+            val isValid = title.isNotBlank() && amount != null && amount > 0 && selectedPayerId.isNotBlank() && selectedSharerIds.isNotEmpty()
 
-            Button(
-                onClick = {
-                    if (isValid) {
-                        val payerName = members.find { it.id == selectedPayerId }?.name ?: "Tôi"
-                        onAdd(title, amount, selectedPayerId, payerName, selectedSharerIds.toList(), note)
-                    }
-                },
-                enabled = isValid,
-                shape = ExpressivePillShape,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
-            ) {
-                Text("Lưu khoản chi", fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Thêm & Tiếp tục (cho phép nhập liên tiếp nhiều món)
+                OutlinedButton(
+                    onClick = {
+                        if (isValid && amount != null) {
+                            val payerName = members.find { it.id == selectedPayerId }?.name ?: "Tôi"
+                            onAdd(title.trim(), amount, selectedPayerId, payerName, selectedSharerIds.toList(), note, true)
+                            title = ""
+                            amountStr = ""
+                        }
+                    },
+                    enabled = isValid,
+                    shape = ExpressivePillShape,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0284C7)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF0284C7))
+                ) {
+                    Text("Thêm tiếp +", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                // Lưu & Đóng
+                Button(
+                    onClick = {
+                        if (isValid && amount != null) {
+                            val payerName = members.find { it.id == selectedPayerId }?.name ?: "Tôi"
+                            onAdd(title.trim(), amount, selectedPayerId, payerName, selectedSharerIds.toList(), note, false)
+                        }
+                    },
+                    enabled = isValid,
+                    shape = ExpressivePillShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) {
+                    Text("Lưu xong", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Hủy")
+                Text("Đóng")
             }
         }
     )

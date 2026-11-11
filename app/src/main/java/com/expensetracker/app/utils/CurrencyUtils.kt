@@ -68,4 +68,39 @@ object CurrencyUtils {
             safeDigits
         }
     }
+
+    /**
+     * Hỗ trợ đọc nhanh các định dạng số tiền tiếng Việt phổ biến:
+     * - "300k", "50k", "15.5k" -> nhân 1.000
+     * - "1.5tr", "2tr", "2.2tr" -> nhân 1.000.000
+     * - "500000", "500.000" -> 500000
+     */
+    fun parseMoneyInput(raw: String): Double? {
+        val clean = raw.trim().lowercase()
+        if (clean.isBlank()) return null
+
+        val kIdx = clean.indexOf('k')
+        if (kIdx != -1) {
+            val num = clean.substring(0, kIdx).filter { it.isDigit() || it == '.' || it == ',' }
+                .replace(",", ".").toDoubleOrNull()
+            if (num != null) return num * 1000
+        }
+
+        val trIdx = clean.indexOf("tr")
+        if (trIdx != -1) {
+            val num = clean.substring(0, trIdx).filter { it.isDigit() || it == '.' || it == ',' }
+                .replace(",", ".").toDoubleOrNull()
+            if (num != null) return num * 1000000
+        }
+
+        val cuIdx = clean.indexOf("củ")
+        if (cuIdx != -1) {
+            val num = clean.substring(0, cuIdx).filter { it.isDigit() || it == '.' || it == ',' }
+                .replace(",", ".").toDoubleOrNull()
+            if (num != null) return num * 1000000
+        }
+
+        val digitsOnly = clean.filter { it.isDigit() }
+        return digitsOnly.toDoubleOrNull()
+    }
 }

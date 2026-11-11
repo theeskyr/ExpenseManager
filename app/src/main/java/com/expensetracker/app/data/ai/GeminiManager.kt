@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.expensetracker.app.data.local.entity.TransactionType
 import com.expensetracker.app.data.model.ScannedReceiptItem
 import com.expensetracker.app.utils.CurrencyUtils
+import com.expensetracker.app.utils.ImageUtils
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
@@ -109,6 +110,51 @@ class GeminiManager(context: Context) {
                        - Thu nhập: "salary" (tiền lương), "bonus" (thưởng), "investment" (đầu tư), "other_income" (thu nhập khác).
                     6. Nếu tin nhắn là trò chuyện, tư vấn tài chính hoặc câu hỏi thông thường không có giao dịch thu chi:
                        Đặt "transactions": [] và điền câu trả lời tư vấn hữu ích vào "replyMessage".
+                    """.trimIndent()
+                )
+            }
+        )
+    }
+
+    private fun getReceiptOcrModel(): GenerativeModel {
+        val apiKey = getApiKey()
+        val modelName = getSelectedModel()
+        return GenerativeModel(
+            modelName = modelName,
+            apiKey = apiKey,
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                temperature = 0.1f // Nhiệt độ tối thiểu để OCR đọc số và chữ chính xác 100%, không bị ảo giác
+            },
+            systemInstruction = content {
+                text(
+                    """
+                    Bạn là chuyên gia OCR hàng đầu chuyên bóc tách hóa đơn, biên lai, phiếu tính tiền, bill cafe, nhà hàng, quán ăn, quán nhậu, siêu thị tại Việt Nam.
+                    Nhiệm vụ của bạn:
+                    1. Đọc kỹ hình ảnh hóa đơn (kể cả ảnh in nhiệt mờ, chụp nghiêng, chụp trong điều kiện ánh sáng yếu hoặc chữ viết tay) và nhận diện từng dòng món ăn, thức uống, hàng hóa, dịch vụ thực tế.
+                    2. Bỏ qua các dòng tiêu đề thông tin quán (tên quán, địa chỉ, số điện thoại, wifi, nhân viên, số bàn, giờ in).
+                    3. Bỏ qua các dòng tổng thanh toán cuối bill: 'Tổng cộng', 'Total', 'Tiền khách đưa', 'Tiền thối', 'Tiền thừa', 'Điểm tích lũy'.
+                    4. NẾU hóa đơn có dòng riêng biệt về 'Phí dịch vụ' hoặc 'Thuế VAT' / 'Giảm giá', hãy ghi nhận như một mục riêng (ví dụ: 'Phí VAT 8%', 'Phí phục vụ') để tổng tiền phân chia được khớp chuẩn.
+                    5. Đối với mỗi món:
+                       - 'name': Tên món ăn/dịch vụ rõ ràng, chuẩn tiếng Việt (ví dụ: 'Trà đào cam sả', 'Bò tơ nướng tảng', 'Bia Heineken', 'Khăn lạnh').
+                       - 'quantity': Số lượng (số nguyên dương, ví dụ 1, 2, 5). Nếu hóa đơn không ghi số lượng hoặc ghi '1', đặt là 1.
+                       - 'amount': Tổng thành tiền của dòng món đó (Double hoặc Long, không có dấu chấm phẩy, không chứa ký tự 'đ' hay 'VND', ví dụ 45000 x 2 = 90000).
+                    6. Bắt buộc trả về đúng định dạng JSON chuẩn theo mẫu:
+                    {
+                      "items": [
+                        {
+                          "name": "Bò nướng tảng",
+                          "quantity": 2,
+                          "amount": 250000
+                        },
+                        {
+                          "name": "Bia Heineken",
+                          "quantity": 10,
+                          "amount": 240000
+                        }
+                      ]
+                    }
+                    Nếu hóa đơn chỉ thấy được tổng số tiền thanh toán (do phần trên bị mất hoặc quá mờ), hãy tạo 1 mục 'Hóa đơn tổng' với số tiền đó. Không bao giờ trả về danh sách rỗng nếu hóa đơn có chữ và số tiền!
                     """.trimIndent()
                 )
             }
@@ -261,20 +307,17 @@ class GeminiManager(context: Context) {
         try {
             if (!hasApiKey()) return@withContext emptyList()
 
+            // Tối ưu hóa kích thước và chất lượng ảnh trước khi gửi cho Gemini (tối đa 2048px nét căng)
+            val optimizedBitmap = ImageUtils.optimizeBitmap(bitmap)
+
             val prompt = """
-                Bạn là Trợ lý AI OCR chuyên trích xuất hóa đơn ăn uống, nhà hàng, cafe, siêu thị của người Việt Nam.
-                Hãy đọc kỹ hình ảnh hóa đơn / biên lai này và trích xuất danh sách tất cả các món ăn, đồ uống hoặc dịch vụ lẻ (kèm số lượng và thành tiền thực tế).
-                Quy tắc bắt buộc:
-                1. Bỏ qua dòng TỔNG CỘNG, TOTAL, TIỀN THỐI, TIỀN KHÁCH ĐƯA.
-                2. Nếu có phí dịch vụ hoặc VAT riêng biệt, có thể ghi nhận như một mục lẻ (ví dụ: 'Phí VAT 8%').
-                3. Tên món lấy nguyên văn rõ ràng (ví dụ: 'Trà đào cam sả', 'Bò nướng tảng', 'Khăn lạnh').
-                4. Số lượng (quantity) là số nguyên dương (ví dụ 1, 2, 3). Nếu không ghi rõ số lượng thì mặc định là 1.
-                5. Thành tiền (amount) là tổng số tiền của dòng món đó (Double / Long không có dấu chấm phẩy, ví dụ đơn giá 30000 x 2 = 60000).
-                6. Trả về đúng định dạng JSON có cấu trúc sau:
+                Hãy phân tích kỹ hình ảnh hóa đơn / biên lai này và bóc tách tất cả các món ăn, đồ uống hoặc dịch vụ lẻ.
+                Đối với mỗi dòng món: 'name' (tên món rõ ràng), 'quantity' (số lượng), 'amount' (tổng thành tiền của dòng đó).
+                Bắt buộc trả về đúng định dạng JSON chuẩn:
                 {
                   "items": [
                     {
-                      "name": "Tên món ăn hoặc đồ uống",
+                      "name": "Tên món",
                       "quantity": 1,
                       "amount": 45000
                     }
@@ -283,30 +326,157 @@ class GeminiManager(context: Context) {
             """.trimIndent()
 
             val inputContent = content {
-                image(bitmap)
+                image(optimizedBitmap)
                 text(prompt)
             }
 
-            val response = getModel().generateContent(inputContent)
+            // Gọi model OCR chuyên biệt
+            val response = getReceiptOcrModel().generateContent(inputContent)
             val jsonString = response.text ?: ""
-            val clean = cleanJsonString(jsonString)
-            val json = JSONObject(clean)
-            val arr = json.optJSONArray("items") ?: JSONArray()
-            val list = mutableListOf<ScannedReceiptItem>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.optJSONObject(i) ?: continue
-                val name = obj.optString("name", "").trim()
-                val quantity = obj.optInt("quantity", 1).coerceAtLeast(1)
-                val amount = obj.optDouble("amount", 0.0)
-                if (name.isNotBlank() && amount > 0.0) {
-                    list.add(ScannedReceiptItem(name = name, quantity = quantity, amount = amount))
-                }
+            val parsedList = parseScannedReceiptItems(jsonString)
+
+            if (parsedList.isNotEmpty()) {
+                parsedList
+            } else {
+                // Nếu model OCR trả về rỗng, fallback sang model mặc định
+                val fallbackResponse = getModel().generateContent(inputContent)
+                val fallbackJson = fallbackResponse.text ?: ""
+                parseScannedReceiptItems(fallbackJson)
             }
-            list
         } catch (e: Exception) {
             e.printStackTrace()
-            emptyList()
+            // Fallback retry với prompt đơn giản
+            try {
+                val optimizedBitmap = ImageUtils.optimizeBitmap(bitmap)
+                val fallbackResponse = getModel().generateContent(content {
+                    image(optimizedBitmap)
+                    text("Đọc hóa đơn này và trả về danh sách các món ăn dạng JSON: {\"items\": [{\"name\": \"...\", \"quantity\": 1, \"amount\": 50000}]}")
+                })
+                val fallbackJson = fallbackResponse.text ?: ""
+                parseScannedReceiptItems(fallbackJson)
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+                emptyList()
+            }
         }
+    }
+
+    /**
+     * Bộ phân tích JSON cực kỳ linh hoạt và bao quát cho hóa đơn:
+     * Chấp nhận mọi biến thể format từ Gemini (dù trả về mảng trực tiếp, trường "items", "transactions", "dishes", "products", v.v.)
+     */
+    fun parseScannedReceiptItems(jsonString: String): List<ScannedReceiptItem> {
+        val clean = cleanJsonString(jsonString)
+        if (clean.isBlank()) return emptyList()
+
+        val results = mutableListOf<ScannedReceiptItem>()
+
+        fun parseItemAmount(obj: JSONObject): Double {
+            val amountKeys = listOf("amount", "total", "price", "total_price", "thanh_tien", "cost", "tien", "dongia")
+            for (key in amountKeys) {
+                if (obj.has(key)) {
+                    val rawVal = obj.opt(key)
+                    if (rawVal is Number) {
+                        val d = rawVal.toDouble()
+                        if (d > 0.0) return d
+                    } else if (rawVal is String) {
+                        val parsed = CurrencyUtils.parseMoneyInput(rawVal)
+                        if (parsed != null && parsed > 0.0) return parsed
+                    }
+                }
+            }
+            return 0.0
+        }
+
+        fun parseItemName(obj: JSONObject): String {
+            val nameKeys = listOf("name", "item", "item_name", "title", "dish", "product", "note", "description", "ten_mon")
+            for (key in nameKeys) {
+                val str = obj.optString(key, "").trim()
+                if (str.isNotBlank()) return str
+            }
+            return ""
+        }
+
+        fun parseItemQuantity(obj: JSONObject): Int {
+            val qtyKeys = listOf("quantity", "qty", "count", "so_luong", "sl")
+            for (key in qtyKeys) {
+                val q = obj.optInt(key, 0)
+                if (q > 0) return q
+            }
+            return 1
+        }
+
+        fun addItemIfValid(obj: JSONObject) {
+            val name = parseItemName(obj)
+            val amount = parseItemAmount(obj)
+            val quantity = parseItemQuantity(obj)
+
+            val lowerName = name.lowercase()
+            val isIgnored = lowerName.contains("tổng cộng") ||
+                    lowerName.contains("tiền mặt") ||
+                    lowerName.contains("khách đưa") ||
+                    lowerName.contains("khách trả") ||
+                    lowerName.contains("tiền thừa") ||
+                    lowerName.contains("tiền thối") ||
+                    (lowerName.contains("thanh toán") && !lowerName.contains("hóa đơn")) ||
+                    lowerName.contains("wifi") ||
+                    lowerName.contains("hotline")
+
+            if (name.isNotBlank() && amount > 0.0 && !isIgnored) {
+                results.add(ScannedReceiptItem(name = name, quantity = quantity, amount = amount))
+            }
+        }
+
+        try {
+            if (clean.startsWith("[")) {
+                // Trả về trực tiếp JSONArray
+                val arr = JSONArray(clean)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    addItemIfValid(obj)
+                }
+            } else {
+                // Trả về JSONObject
+                val json = JSONObject(clean)
+
+                // Tìm mảng trong các key phổ biến
+                val possibleArrayKeys = listOf("items", "transactions", "dishes", "products", "bill_items", "details", "lines", "data", "list")
+                var foundArray: JSONArray? = null
+                for (k in possibleArrayKeys) {
+                    if (json.has(k) && json.optJSONArray(k) != null) {
+                        foundArray = json.optJSONArray(k)
+                        break
+                    }
+                }
+
+                // Nếu không có trong danh sách trên, duyệt tất cả các key để tìm JSONArray
+                if (foundArray == null) {
+                    val keys = json.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        val arr = json.optJSONArray(k)
+                        if (arr != null && arr.length() > 0) {
+                            foundArray = arr
+                            break
+                        }
+                    }
+                }
+
+                if (foundArray != null) {
+                    for (i in 0 until foundArray.length()) {
+                        val obj = foundArray.optJSONObject(i) ?: continue
+                        addItemIfValid(obj)
+                    }
+                } else {
+                    // Nếu trả về 1 object đơn lẻ
+                    addItemIfValid(json)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return results
     }
 
     private fun parseAiJson(jsonString: String): AiResponse {
