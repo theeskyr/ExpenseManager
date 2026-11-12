@@ -672,22 +672,71 @@ function renderChart() {
 
 // ----------------- AI ASSISTANT SCREEN -----------------
 let chatMessages = [
-  { sender: 'ai', text: 'Xin chào! Tôi là Trợ lý AI Tài chính. Bạn có thể gõ nội dung thu chi, bấm micro để nói tiếng Việt, hoặc gửi ảnh hóa đơn/bill chuyển khoản để tôi tự động ghi nhận nhé!' }
+  { sender: 'ai', text: 'Xin chào! Tôi là Trợ lý AI Tài chính. Bạn có thể gõ nội dung thu chi, bấm micro để nói tiếng Việt, hoặc tải/chụp ảnh hóa đơn, bill chuyển khoản để tôi tự động ghi nhận nhé!' }
 ];
 let isAiLoading = false;
+let aiPendingImageBase64 = null;
 
 function renderAiScreen() {
+  const currentModel = state.settings.selectedModel || 'gemini-3.1-flash-lite';
+  const hasKey = Boolean(state.settings.apiKey && state.settings.apiKey.trim());
+
   return `
     <div class="flex flex-col h-[calc(100vh-140px)]">
+      
+      <!-- Top AI Status & Configuration Header -->
+      <div class="mb-2 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+        ${!hasKey ? `
+          <div class="rounded-xl bg-amber-50 p-3 border border-amber-200 space-y-2">
+            <div class="flex items-center space-x-2 text-amber-800">
+              <i data-lucide="key" class="h-4 w-4"></i>
+              <span class="text-xs font-bold">Chưa cài đặt Gemini API Key</span>
+            </div>
+            <p class="text-[11px] text-amber-700 leading-tight">Cần có Gemini API Key để trò chuyện và quét hóa đơn AI. Hoàn toàn miễn phí từ Google!</p>
+            <div class="flex space-x-1.5">
+              <input id="quick-api-key-input" type="password" placeholder="Dán API Key (AIzaSy...)" class="flex-1 rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-amber-600" />
+              <button onclick="saveQuickApiKey()" class="rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow hover:bg-amber-700 transition active:scale-95">Lưu Key</button>
+            </div>
+            <p class="text-[10px] text-amber-600">Lấy key miễn phí tại: <a href="https://aistudio.google.com" target="_blank" class="underline font-bold">aistudio.google.com</a></p>
+          </div>
+        ` : `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+                <i data-lucide="bot" class="h-4 w-4"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-xs font-extrabold text-slate-800">Model:</span>
+                  <select id="chat-model-select" onchange="switchChatModel(this.value)" class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-bold text-purple-700 outline-none">
+                    ${GeminiManager.AVAILABLE_MODELS.map((m) => `
+                      <option value="${m.id}" ${m.id === currentModel ? 'selected' : ''}>${m.name.split(' (')[0]}</option>
+                    `).join('')}
+                  </select>
+                </div>
+                <div class="flex items-center space-x-1">
+                  <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                  <span class="text-[10px] font-semibold text-emerald-600">AI Ready</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="promptEditApiKey()" title="Cài đặt lại API Key" class="flex items-center space-x-1 rounded-xl bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-200 transition">
+              <i data-lucide="key" class="h-3 w-3"></i>
+              <span>Đổi Key</span>
+            </button>
+          </div>
+        `}
+      </div>
+
       <!-- Chat history -->
       <div id="chat-messages" class="flex-1 space-y-3 overflow-y-auto p-2">
-        ${chatMessages.map((msg) => `
+        ${chatMessages.map((msg, idx) => `
           <div class="flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}">
             <div class="max-w-[85%] rounded-3xl px-4 py-2.5 text-xs leading-relaxed ${
               msg.sender === 'user' ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-slate-100 text-slate-800 shadow-sm rounded-bl-sm'
             }">
-              ${msg.image ? `<img src="${msg.image}" class="mb-2 max-h-48 rounded-xl object-cover" />` : ''}
-              <p>${msg.text}</p>
+              ${msg.image ? `<img src="${msg.image}" class="mb-2 max-h-48 rounded-xl object-cover border border-slate-200/50" />` : ''}
+              <p class="whitespace-pre-wrap">${msg.text}</p>
             </div>
           </div>
         `).join('')}
@@ -697,33 +746,109 @@ function renderAiScreen() {
               <span class="inline-block h-2 w-2 animate-bounce rounded-full bg-emerald-500"></span>
               <span class="inline-block h-2 w-2 animate-bounce rounded-full bg-emerald-500" style="animation-delay: 0.2s"></span>
               <span class="inline-block h-2 w-2 animate-bounce rounded-full bg-emerald-500" style="animation-delay: 0.4s"></span>
-              <span class="ml-1">AI đang suy nghĩ...</span>
+              <span class="ml-1">AI đang xử lý...</span>
             </div>
           </div>
         ` : ''}
       </div>
 
-      <!-- Chat input bar -->
+      <!-- Chat input area with Image Preview -->
       <div class="mt-2 rounded-3xl border border-slate-100 bg-white p-2 shadow-sm">
+        ${aiPendingImageBase64 ? `
+          <div class="mb-2 px-2 pt-1 flex items-center justify-between border-b border-slate-100 pb-2">
+            <div class="flex items-center space-x-2">
+              <img src="${aiPendingImageBase64}" class="h-12 w-12 rounded-xl object-cover border border-purple-200 shadow-sm" />
+              <div>
+                <p class="text-xs font-bold text-purple-900">Đã đính kèm ảnh hóa đơn</p>
+                <p class="text-[10px] text-slate-400">Gõ yêu cầu hoặc bấm gửi để AI phân tích</p>
+              </div>
+            </div>
+            <button type="button" onclick="clearAiPendingImage()" class="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition">
+              <i data-lucide="x" class="h-3.5 w-3.5"></i>
+            </button>
+          </div>
+        ` : ''}
+
         <form onsubmit="handleSendAiMessage(event)" class="flex items-center space-x-1.5">
-          <label class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100">
+          <!-- Button 1: Gallery / Files -->
+          <label title="Tải ảnh từ thư viện" class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100 transition active:scale-95">
             <i data-lucide="image" class="h-4 w-4"></i>
             <input type="file" accept="image/*" class="hidden" onchange="handleAiImageSelect(event)" />
           </label>
 
-          <input id="ai-input-text" type="text" placeholder="Nhắn hoặc bấm micro để nói..." class="flex-1 bg-transparent px-2 text-xs outline-none text-slate-800 placeholder-slate-400" />
+          <!-- Button 2: Camera Capture -->
+          <label title="Chụp ảnh mới bằng Camera" class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100 transition active:scale-95">
+            <i data-lucide="camera" class="h-4 w-4"></i>
+            <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handleAiImageSelect(event)" />
+          </label>
 
-          <button type="button" onclick="startVoiceInput()" id="mic-btn" class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition active:scale-95">
+          <input id="ai-input-text" type="text" placeholder="${aiPendingImageBase64 ? 'Hỏi về hóa đơn này hoặc bấm Gửi...' : 'Nhắn hoặc bấm micro để nói...'}" class="flex-1 bg-transparent px-2 text-xs outline-none text-slate-800 placeholder-slate-400" />
+
+          <button type="button" onclick="startVoiceInput()" id="mic-btn" title="Nói tiếng Việt" class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition active:scale-95">
             <i data-lucide="mic" class="h-4 w-4"></i>
           </button>
 
-          <button type="submit" class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition active:scale-95">
+          <button type="submit" title="Gửi" class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm transition active:scale-95 hover:bg-emerald-700">
             <i data-lucide="send" class="h-4 w-4"></i>
           </button>
         </form>
       </div>
+
     </div>
   `;
+}
+
+async function saveQuickApiKey() {
+  const input = document.getElementById('quick-api-key-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) {
+    alert('Vui lòng nhập API Key hợp lệ!');
+    return;
+  }
+  await GeminiManager.setApiKey(val);
+  state.settings.apiKey = val;
+  renderApp();
+  alert('Đã lưu Gemini API Key thành công! Giờ bạn có thể trò chuyện và quét hóa đơn AI.');
+}
+
+async function promptEditApiKey() {
+  const currentKey = state.settings.apiKey || '';
+  const newKey = prompt('Nhập Gemini API Key mới của bạn:', currentKey);
+  if (newKey !== null) {
+    const val = newKey.trim();
+    await GeminiManager.setApiKey(val);
+    state.settings.apiKey = val;
+    renderApp();
+    alert('Đã cập nhật Gemini API Key!');
+  }
+}
+
+async function switchChatModel(model) {
+  await GeminiManager.setSelectedModel(model);
+  state.settings.selectedModel = model;
+  renderApp();
+}
+
+function clearAiPendingImage() {
+  aiPendingImageBase64 = null;
+  renderApp();
+}
+
+function handleAiImageSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    aiPendingImageBase64 = event.target.result;
+    renderApp();
+    setTimeout(() => {
+      const input = document.getElementById('ai-input-text');
+      if (input) input.focus();
+    }, 100);
+  };
+  reader.readAsDataURL(file);
 }
 
 function scrollChatToBottom() {
@@ -737,15 +862,27 @@ async function handleSendAiMessage(e) {
   e.preventDefault();
   const input = document.getElementById('ai-input-text');
   const text = input ? input.value.trim() : '';
-  if (!text || isAiLoading) return;
+  const attachedImage = aiPendingImageBase64;
 
-  chatMessages.push({ sender: 'user', text });
-  input.value = '';
+  if (!text && !attachedImage) return;
+  if (isAiLoading) return;
+
+  // Append user message
+  chatMessages.push({
+    sender: 'user',
+    text: text || 'Phân tích hóa đơn này và đọc các món, tổng tiền giúp tôi:',
+    image: attachedImage
+  });
+
+  if (input) input.value = '';
+  aiPendingImageBase64 = null;
   isAiLoading = true;
   renderApp();
+  scrollChatToBottom();
 
   try {
-    const result = await GeminiManager.chatWithAi(text);
+    const promptText = text || 'Phân tích chi tiết hóa đơn/bill này và đọc các món, tổng tiền giúp tôi:';
+    const result = await GeminiManager.chatWithAi(promptText, attachedImage);
     chatMessages.push({ sender: 'ai', text: result.text });
 
     if (result.actionData && result.actionData.action === 'add_transaction') {
@@ -762,38 +899,15 @@ async function handleSendAiMessage(e) {
         timestamp: Date.now()
       });
 
-      chatMessages.push({ sender: 'ai', text: ` Đã tự động tạo giao dịch: ${cat.name} (${formatMoney(act.amount)}) vào ví ${acc.name}!` });
+      chatMessages.push({ sender: 'ai', text: ` Đã tự động tạo giao dịch: ${cat ? cat.name : 'Chi tiêu'} (${formatMoney(act.amount)}) vào ví ${acc ? acc.name : 'Mặc định'}!` });
     }
   } catch (err) {
     chatMessages.push({ sender: 'ai', text: `❌ ${err.message}` });
   } finally {
     isAiLoading = false;
     renderApp();
+    scrollChatToBottom();
   }
-}
-
-function handleAiImageSelect(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async (event) => {
-    const base64 = event.target.result;
-    chatMessages.push({ sender: 'user', text: 'Phân tích hóa đơn này giúp tôi:', image: base64 });
-    isAiLoading = true;
-    renderApp();
-
-    try {
-      const result = await GeminiManager.chatWithAi('Phân tích chi tiết hóa đơn/giao dịch này và cho tôi biết số tiền, bên nhận.', base64);
-      chatMessages.push({ sender: 'ai', text: result.text });
-    } catch (err) {
-      chatMessages.push({ sender: 'ai', text: `❌ ${err.message}` });
-    } finally {
-      isAiLoading = false;
-      renderApp();
-    }
-  };
-  reader.readAsDataURL(file);
 }
 
 // Web Speech Recognition (Google Speech on Chrome/Safari)
@@ -1370,19 +1484,32 @@ function renderSettingsScreen() {
   return `
     <div class="space-y-4 pb-24">
       <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-        <h3 class="text-sm font-bold text-slate-800">Cấu hình Google Gemini AI</h3>
+        <div class="flex items-center space-x-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+            <i data-lucide="sparkles" class="h-4 w-4"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-800">Cấu hình Google Gemini AI</h3>
+        </div>
+        
         <div>
           <label class="text-xs font-semibold text-slate-600">Gemini API Key</label>
           <div class="mt-1 flex space-x-2">
-            <input id="setting-api-key" type="password" value="${currentApiKey}" placeholder="Dán AIzaSy..." class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" />
-            <button onclick="saveApiKeySetting()" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow">Lưu</button>
+            <input id="setting-api-key" type="password" value="${currentApiKey}" placeholder="Dán API Key (AIzaSy...)" class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+            <button onclick="saveApiKeySetting()" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-700 transition active:scale-95">Lưu</button>
           </div>
-          <p class="mt-1 text-[11px] text-slate-400">Lấy key miễn phí tại <a href="https://aistudio.google.com" target="_blank" class="text-emerald-600 underline">aistudio.google.com</a></p>
+          <div class="mt-2 flex items-center justify-between text-[11px]">
+            <p class="text-slate-400">Lấy key miễn phí tại <a href="https://aistudio.google.com" target="_blank" class="text-emerald-600 underline font-semibold">aistudio.google.com</a></p>
+            <button onclick="testGeminiApiKey()" id="btn-test-key" class="text-purple-600 font-bold hover:underline flex items-center space-x-1">
+              <i data-lucide="zap" class="h-3 w-3"></i>
+              <span>Kiểm tra kết nối</span>
+            </button>
+          </div>
+          <div id="test-key-result" class="mt-1 hidden text-xs font-semibold"></div>
         </div>
 
         <div class="pt-2">
           <label class="text-xs font-semibold text-slate-600">Mô hình AI mặc định</label>
-          <select id="setting-model" onchange="saveModelSetting(this.value)" class="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs outline-none">
+          <select id="setting-model" onchange="saveModelSetting(this.value)" class="mt-1 w-full rounded-xl border border-slate-200 p-2 text-xs font-semibold outline-none focus:border-purple-500">
             ${GeminiManager.AVAILABLE_MODELS.map((m) => `
               <option value="${m.id}" ${m.id === currentModel ? 'selected' : ''}>${m.name}</option>
             `).join('')}
@@ -1393,12 +1520,45 @@ function renderSettingsScreen() {
       <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
         <h3 class="text-sm font-bold text-slate-800">Sao lưu & Quản lý dữ liệu</h3>
         <div class="grid grid-cols-2 gap-2">
-          <button onclick="exportDataBackup()" class="rounded-xl bg-slate-100 py-2.5 text-xs font-bold text-slate-700">Sao lưu JSON</button>
-          <button onclick="resetAllData()" class="rounded-xl bg-rose-50 py-2.5 text-xs font-bold text-rose-600">Xóa dữ liệu</button>
+          <button onclick="exportDataBackup()" class="rounded-xl bg-slate-100 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition">Sao lưu JSON</button>
+          <button onclick="resetAllData()" class="rounded-xl bg-rose-50 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition">Xóa dữ liệu</button>
         </div>
       </div>
     </div>
   `;
+}
+
+async function testGeminiApiKey() {
+  const resultEl = document.getElementById('test-key-result');
+  const btnEl = document.getElementById('btn-test-key');
+  const inputEl = document.getElementById('setting-api-key');
+  const key = inputEl ? inputEl.value.trim() : state.settings.apiKey;
+
+  if (!key) {
+    alert('Vui lòng nhập API Key trước khi kiểm tra!');
+    return;
+  }
+
+  if (resultEl) {
+    resultEl.classList.remove('hidden', 'text-rose-600', 'text-emerald-600');
+    resultEl.classList.add('text-slate-500');
+    resultEl.innerText = 'Đang gửi yêu cầu kiểm tra đến Google Gemini...';
+  }
+
+  try {
+    await GeminiManager.testConnection(key);
+    if (resultEl) {
+      resultEl.classList.remove('text-slate-500');
+      resultEl.classList.add('text-emerald-600');
+      resultEl.innerText = '✅ Kết nối Google Gemini API thành công! Key hoạt động tốt.';
+    }
+  } catch (err) {
+    if (resultEl) {
+      resultEl.classList.remove('text-slate-500');
+      resultEl.classList.add('text-rose-600');
+      resultEl.innerText = `❌ Lỗi kết nối: ${err.message}`;
+    }
+  }
 }
 
 async function saveApiKeySetting() {
@@ -1491,86 +1651,234 @@ async function deleteTransaction(txId) {
 
 // ----------------- OCR RECEIPT SCAN WORKFLOW -----------------
 let ocrTarget = 'split'; // 'split', 'trip', or 'personal'
+let currentOcrBase64 = null;
+
+// Quét hóa đơn trực tiếp trong modal Thêm Giao Dịch
+async function handleScanReceiptForTransaction(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const loadingEl = document.getElementById('tx-ocr-loading');
+  const previewBox = document.getElementById('tx-bill-preview-box');
+  const previewImg = document.getElementById('tx-bill-preview-img');
+  const previewTitle = document.getElementById('tx-bill-preview-title');
+  const previewSub = document.getElementById('tx-bill-preview-sub');
+
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (previewBox) previewBox.classList.add('hidden');
+
+  const reader = new FileReader();
+  reader.onload = async (event) => {
+    const base64 = event.target.result;
+    try {
+      const result = await GeminiManager.scanReceipt(base64);
+
+      if (loadingEl) loadingEl.classList.add('hidden');
+
+      // Điền số tiền
+      if (result.totalAmount > 0) {
+        const amtInput = document.getElementById('tx-amount');
+        if (amtInput) {
+          amtInput.value = result.totalAmount;
+          previewAmount(result.totalAmount);
+        }
+      }
+
+      // Chọn danh mục thông minh dựa trên kết quả OCR
+      if (result.category) {
+        const catNameLower = result.category.toLowerCase();
+        const matched = state.categories.find((c) =>
+          c.type === currentModalType &&
+          (c.name.toLowerCase().includes(catNameLower) || catNameLower.includes(c.name.toLowerCase()))
+        );
+        if (matched) {
+          selectCat(matched.id);
+        }
+      }
+
+      // Điền ghi chú
+      const noteInput = document.getElementById('tx-note');
+      if (noteInput) {
+        const summary = result.items.length > 0 ? result.items.map((i) => i.name).slice(0, 3).join(', ') : '';
+        if (result.storeName && summary) {
+          noteInput.value = `${result.storeName} (${summary})`;
+        } else if (result.storeName) {
+          noteInput.value = result.storeName;
+        } else if (summary) {
+          noteInput.value = summary;
+        }
+      }
+
+      // Hiển thị preview ảnh hóa đơn
+      if (previewBox && previewImg) {
+        previewImg.src = base64;
+        if (previewTitle) previewTitle.innerText = result.storeName || 'Hóa đơn đã bóc tách';
+        if (previewSub) previewSub.innerText = `Tổng: ${formatMoney(result.totalAmount)} (${result.items.length} món)`;
+        previewBox.classList.remove('hidden');
+      }
+
+      if (window.lucide) lucide.createIcons();
+    } catch (err) {
+      if (loadingEl) loadingEl.classList.add('hidden');
+      alert('Lỗi quét hóa đơn: ' + err.message);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearTxBillPreview() {
+  const previewBox = document.getElementById('tx-bill-preview-box');
+  const fileInput = document.getElementById('tx-bill-file-input');
+  const camInput = document.getElementById('tx-bill-camera-input');
+  if (previewBox) previewBox.classList.add('hidden');
+  if (fileInput) fileInput.value = '';
+  if (camInput) camInput.value = '';
+}
 
 function openOcrScanModal(target = 'split') {
   ocrTarget = target;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.capture = 'environment';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  currentOcrBase64 = null;
+  state.scannedOcrResult = null;
 
-    openModal('ocr-modal');
-    document.getElementById('ocr-loading-view').classList.remove('hidden');
-    document.getElementById('ocr-result-view').classList.add('hidden');
+  // Hiển thị màn hình chọn nguồn ảnh
+  const srcView = document.getElementById('ocr-source-view');
+  const loadView = document.getElementById('ocr-loading-view');
+  const resView = document.getElementById('ocr-result-view');
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64 = event.target.result;
-      try {
-        const items = await GeminiManager.scanReceipt(base64);
-        state.scannedOcrItems = items;
+  if (srcView) srcView.classList.remove('hidden');
+  if (loadView) loadView.classList.add('hidden');
+  if (resView) resView.classList.add('hidden');
 
-        document.getElementById('ocr-loading-view').classList.add('hidden');
-        document.getElementById('ocr-result-view').classList.remove('hidden');
+  openModal('ocr-modal');
+}
 
-        const listContainer = document.getElementById('ocr-items-list');
-        if (items.length === 0) {
-          listContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Không tìm thấy món nào rõ ràng. Vui lòng thử chụp lại cận cảnh hơn!</p>';
+function resetOcrModal() {
+  const srcView = document.getElementById('ocr-source-view');
+  const loadView = document.getElementById('ocr-loading-view');
+  const resView = document.getElementById('ocr-result-view');
+
+  if (srcView) srcView.classList.remove('hidden');
+  if (loadView) loadView.classList.add('hidden');
+  if (resView) resView.classList.add('hidden');
+}
+
+async function handleOcrFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const srcView = document.getElementById('ocr-source-view');
+  const loadView = document.getElementById('ocr-loading-view');
+  const resView = document.getElementById('ocr-result-view');
+  const loadThumb = document.getElementById('ocr-loading-thumb');
+
+  const reader = new FileReader();
+  reader.onload = async (event) => {
+    currentOcrBase64 = event.target.result;
+
+    if (srcView) srcView.classList.add('hidden');
+    if (loadView) loadView.classList.remove('hidden');
+    if (resView) resView.classList.add('hidden');
+    if (loadThumb) loadThumb.src = currentOcrBase64;
+
+    try {
+      const result = await GeminiManager.scanReceipt(currentOcrBase64);
+      state.scannedOcrResult = { ...result, image: currentOcrBase64 };
+      state.scannedOcrItems = result.items || [];
+
+      if (loadView) loadView.classList.add('hidden');
+      if (resView) resView.classList.remove('hidden');
+
+      const resThumb = document.getElementById('ocr-result-thumb');
+      const merchantEl = document.getElementById('ocr-merchant-name');
+      const countEl = document.getElementById('ocr-items-count');
+      const totalEl = document.getElementById('ocr-total-amount');
+      const listContainer = document.getElementById('ocr-items-list');
+
+      if (resThumb) resThumb.src = currentOcrBase64;
+      if (merchantEl) merchantEl.innerText = result.storeName || 'Hóa đơn mua sắm / ăn uống';
+      if (countEl) countEl.innerText = `${result.items.length} món nhận diện`;
+      if (totalEl) totalEl.innerText = formatMoney(result.totalAmount);
+
+      if (listContainer) {
+        if (result.items.length === 0) {
+          listContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Không có danh sách món chi tiết, chỉ nhận diện được tổng tiền.</p>';
         } else {
-          listContainer.innerHTML = items.map((it, idx) => `
-            <div class="flex items-center justify-between rounded-xl bg-slate-50 p-2 text-xs">
-              <span class="font-bold text-slate-800">${it.name}</span>
+          listContainer.innerHTML = result.items.map((it) => `
+            <div class="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-100">
+              <div class="flex items-center space-x-1.5">
+                <span class="font-bold text-slate-800">${it.name}</span>
+                ${it.quantity > 1 ? `<span class="text-[10px] text-slate-500 font-semibold">(x${it.quantity})</span>` : ''}
+              </div>
               <span class="font-extrabold text-emerald-600">${formatMoney(it.amount)}</span>
             </div>
           `).join('');
         }
-      } catch (err) {
-        closeModal('ocr-modal');
-        alert('Lỗi nhận diện hóa đơn: ' + err.message);
       }
-    };
-    reader.readAsDataURL(file);
+
+      if (window.lucide) lucide.createIcons();
+    } catch (err) {
+      if (loadView) loadView.classList.add('hidden');
+      if (srcView) srcView.classList.remove('hidden');
+      alert('Lỗi nhận diện hóa đơn: ' + err.message);
+    }
   };
-  input.click();
+  reader.readAsDataURL(file);
 }
 
 function applyOcrToSplitBill() {
-  if (state.scannedOcrItems.length === 0) return;
-
-  state.splitBill.items.push(...state.scannedOcrItems.map((it) => ({
-    id: it.id,
-    title: it.name,
-    amount: it.amount,
-    paidByMemberId: state.splitBill.members[0].id,
-    splitAmongMemberIds: []
-  })));
+  const res = state.scannedOcrResult;
+  if (!res || !res.items || res.items.length === 0) {
+    if (res && res.totalAmount > 0) {
+      // Thêm 1 item tổng
+      state.splitBill.items.push({
+        id: 'split_item_' + Date.now(),
+        title: res.storeName || 'Hóa đơn tổng',
+        amount: res.totalAmount,
+        paidByMemberId: state.splitBill.members[0].id,
+        splitAmongMemberIds: []
+      });
+    } else {
+      alert('Không có dữ liệu món nào để đưa vào bảng chia tiền.');
+      return;
+    }
+  } else {
+    state.splitBill.items.push(...res.items.map((it) => ({
+      id: it.id || ('item_' + Math.random().toString(36).substr(2, 9)),
+      title: it.name,
+      amount: it.amount,
+      paidByMemberId: state.splitBill.members[0].id,
+      splitAmongMemberIds: []
+    })));
+  }
 
   closeModal('ocr-modal');
   switchTab('split');
-  alert(`⚡ Đã thêm ${state.scannedOcrItems.length} món vào bảng chia tiền!`);
+  alert(`⚡ Đã đưa các món trên hóa đơn vào bảng chia tiền!`);
 }
 
 async function applyOcrToPersonalTx() {
-  if (state.scannedOcrItems.length === 0) return;
+  const res = state.scannedOcrResult;
+  if (!res || res.totalAmount <= 0) {
+    alert('Không tìm thấy số tiền hợp lệ trên hóa đơn.');
+    return;
+  }
 
-  const total = state.scannedOcrItems.reduce((s, it) => s + it.amount, 0);
-  const titles = state.scannedOcrItems.map((i) => i.name).slice(0, 3).join(', ');
+  const defaultCat = state.categories.find((c) => c.type === 'EXPENSE' && (c.id === 'food' || c.name.includes('Ăn uống'))) || state.categories[0];
+  const summary = res.items.length > 0 ? res.items.map((i) => i.name).slice(0, 3).join(', ') : '';
+  const note = res.storeName && summary ? `${res.storeName} (${summary})` : (res.storeName || summary || 'Hóa đơn quét AI');
 
   await addTransaction({
-    amount: total,
+    amount: res.totalAmount,
     type: 'EXPENSE',
-    categoryId: 'food',
+    categoryId: defaultCat ? defaultCat.id : 'food',
     accountId: state.accounts[0] ? state.accounts[0].id : 1,
-    note: `Hóa đơn: ${titles}${state.scannedOcrItems.length > 3 ? '...' : ''}`,
+    note: note,
     timestamp: Date.now()
   });
 
   closeModal('ocr-modal');
   switchTab('home');
-  alert(`⚡ Đã lưu hóa đơn tổng ${formatMoney(total)} vào mục Chi tiêu!`);
+  alert(`⚡ Đã lưu hóa đơn ${formatMoney(res.totalAmount)} vào mục Chi tiêu!`);
 }
 
 // ----------------- MODAL UTILITIES -----------------
@@ -1581,6 +1889,7 @@ function openModal(id) {
     if (id === 'add-transaction-modal') {
       populateCategoryChips();
       populateAccountOptions();
+      clearTxBillPreview();
       document.getElementById('tx-amount').value = '';
       document.getElementById('amount-preview').innerText = '';
       document.getElementById('tx-note').value = '';

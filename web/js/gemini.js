@@ -27,12 +27,46 @@ const GeminiManager = {
   },
 
   /**
-   * Chat với trợ lý AI tài chính cá nhân
+   * Kiểm tra tính hợp lệ của API Key với Google Gemini API
+   */
+  async testConnection(customKey = null, customModel = null) {
+    const apiKey = (customKey !== null ? customKey : await this.getApiKey()).trim();
+    if (!apiKey) {
+      throw new Error('Vui lòng nhập API Key để kiểm tra.');
+    }
+
+    const model = customModel || await this.getSelectedModel();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: 'Trả lời đúng 2 chữ "Kết nối thành công" bằng tiếng Việt.' }]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      const msg = errData?.error?.message || response.statusText;
+      throw new Error(`Lỗi kết nối Gemini (${response.status}): ${msg}`);
+    }
+
+    return true;
+  },
+
+  /**
+   * Chat với trợ lý AI tài chính cá nhân (hỗ trợ văn bản và ảnh)
    */
   async chatWithAi(userMessage, imageBase64 = null) {
     const apiKey = await this.getApiKey();
     if (!apiKey) {
-      throw new Error('Vui lòng cài đặt Gemini API Key trong mục Cài đặt trước khi tiếp tục.');
+      throw new Error('Vui lòng cài đặt Gemini API Key trong tab Trợ lý AI hoặc Cài đặt trước khi tiếp tục.');
     }
 
     const model = await this.getSelectedModel();
@@ -41,7 +75,7 @@ const GeminiManager = {
     const systemInstruction = `Bạn là Trợ lý Quản lý Chi tiêu và Tài chính Cá nhân Thông minh (Expense Manager AI).
 Nhiệm vụ của bạn:
 1. Trả lời thân thiện, súc tích bằng tiếng Việt, đưa ra lời khuyên tài chính thực tế và phù hợp với người Việt.
-2. Nếu người dùng nói về một khoản thu hoặc chi (ví dụ: "vừa ăn phở 45k", "mua sắm 300k", "nhận lương 15tr"), hãy phân tích và trả về định dạng JSON sau ở cuối câu trả lời:
+2. Nếu người dùng nói về một khoản thu hoặc chi, hoặc gửi ảnh hóa đơn/bill chuyển khoản và yêu cầu ghi nhận, hãy phân tích và trả về định dạng JSON sau ở cuối câu trả lời:
 \`\`\`json
 {
   "action": "add_transaction",
@@ -51,6 +85,7 @@ Nhiệm vụ của bạn:
   "note": "Ăn phở"
 }
 \`\`\`
+Trong đó "type" là "EXPENSE" hoặc "INCOME", "category" là một trong các loại: Ăn uống, Mua sắm, Di chuyển, Hóa đơn, Giải trí, Khác; "amount" là số nguyên VND.
 3. Nếu người dùng gửi ảnh hóa đơn/bill chuyển khoản, hãy đọc số tiền, bên nhận và tóm tắt ngắn gọn.`;
 
     const contents = [];
@@ -68,7 +103,7 @@ Nhiệm vụ của bạn:
     }
 
     parts.push({
-      text: userMessage || 'Hãy phân tích hình ảnh này giúp tôi.'
+      text: userMessage || 'Hãy phân tích hình ảnh hóa đơn/bill này giúp tôi.'
     });
 
     contents.push({ role: 'user', parts });
@@ -115,20 +150,23 @@ Nhiệm vụ của bạn:
   },
 
   /**
-   * Quét và bóc tách từng món trên hóa đơn/bill ăn uống
+   * Quét và bóc tách thông tin hóa đơn/bill (tên quán, tổng tiền, danh mục, từng món)
    */
   async scanReceipt(imageBase64) {
     const apiKey = await this.getApiKey();
     if (!apiKey) {
-      throw new Error('Chưa cấu hình API Key. Vui lòng vào Cài đặt để nhập Gemini API Key.');
+      throw new Error('Chưa cấu hình API Key. Vui lòng nhập Gemini API Key trong tab Trợ lý AI hoặc Cài đặt.');
     }
 
     const model = await this.getSelectedModel();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const prompt = `Bạn là hệ thống OCR chuyên bóc tách hóa đơn ăn uống, nhà hàng, mua sắm Việt Nam.
+    const prompt = `Bạn là hệ thống OCR chuyên bóc tách hóa đơn ăn uống, nhà hàng, mua sắm, siêu thị, vé xe, bill chuyển khoản ngân hàng Việt Nam.
 Hãy đọc hình ảnh hóa đơn này và trả về DUY NHẤT một chuỗi JSON hợp lệ với cấu trúc sau:
 {
+  "storeName": "Tên quán / Cửa hàng / Bên nhận (hoặc để trống nếu không rõ)",
+  "totalAmount": 150000,
+  "category": "Ăn uống",
   "items": [
     {
       "name": "Tên món/sản phẩm",
@@ -139,12 +177,11 @@ Hãy đọc hình ảnh hóa đơn này và trả về DUY NHẤT một chuỗi 
 }
 
 Quy tắc nghiêm ngặt:
-- "name": Tên món ăn hoặc sản phẩm cụ thể (bỏ qua dòng tiêu đề nhà hàng, ngày giờ, số bàn).
-- "quantity": Số lượng (mặc định là 1 nếu không ghi rõ).
-- "amount": Thành tiền của món đó (đơn vị VND, là số nguyên number, ví dụ 45000, 120000; KHÔNG kèm chữ 'đ', 'k', dấu chấm hay phẩy).
-- Bỏ qua dòng TỔNG CỘNG, VAT, GIẢM GIÁ hoặc TIỀN THỪA.
-- Nếu không thấy món nào, trả về: {"items": []}
-- Tuyệt đối chỉ trả về JSON, không kèm lời dẫn nào khác.`;
+- "storeName": Tên thương hiệu/quán/siêu thị/người nhận tiền nếu nhận diện được.
+- "totalAmount": Tổng số tiền thanh toán cuối cùng (number số nguyên VND, ví dụ 150000; KHÔNG kèm chữ 'đ', 'k', dấu chấm hay phẩy).
+- "category": Phân loại phù hợp nhất: Ăn uống, Mua sắm, Di chuyển, Hóa đơn, Giải trí, Khác.
+- "items": Danh sách các món ăn hoặc hàng hóa chi tiết (nếu hóa đơn liệt kê từng món). Nếu là bill chuyển khoản hoặc hóa đơn tổng không có danh sách món, "items" có thể rỗng hoặc chứa 1 dòng ghi nhận tổng tiền.
+- Tuyệt đối chỉ trả về JSON, không kèm lời dẫn markdown nào ngoài JSON.`;
 
     const mimeType = imageBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -186,16 +223,24 @@ Quy tắc nghiêm ngặt:
 
     const data = await response.json();
     const rawText = data.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '{}';
-    return this.parseScannedItems(rawText);
+    return this.parseScannedReceipt(rawText);
   },
 
-  parseScannedItems(jsonString) {
+  parseScannedReceipt(jsonString) {
     try {
       const cleaned = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleaned);
 
+      let totalAmount = parsed.totalAmount || parsed.total || parsed.tong_tien || 0;
+      if (typeof totalAmount === 'string') {
+        totalAmount = parseMoneyInput(totalAmount);
+      }
+
+      const storeName = (parsed.storeName || parsed.merchant || parsed.store || parsed.shop || '').trim();
+      const category = (parsed.category || parsed.danh_muc || 'Ăn uống').trim();
+
       const list = parsed.items || parsed.transactions || parsed.dishes || (Array.isArray(parsed) ? parsed : []);
-      const result = [];
+      const items = [];
 
       list.forEach((raw) => {
         const name = (raw.name || raw.title || raw.item || raw.mon || '').trim();
@@ -207,7 +252,7 @@ Quy tắc nghiêm ngặt:
         }
 
         if (name && amount > 0) {
-          result.push({
+          items.push({
             id: 'item_' + Math.random().toString(36).substr(2, 9),
             name,
             quantity,
@@ -216,10 +261,25 @@ Quy tắc nghiêm ngặt:
         }
       });
 
-      return result;
+      // Nếu không có totalAmount nhưng có items, tính tổng từ items
+      if (!totalAmount && items.length > 0) {
+        totalAmount = items.reduce((sum, it) => sum + it.amount, 0);
+      }
+
+      return {
+        storeName,
+        totalAmount: Number(totalAmount) || 0,
+        category,
+        items
+      };
     } catch (e) {
       console.error('Lỗi phân tích JSON hóa đơn:', e, jsonString);
-      return [];
+      return {
+        storeName: '',
+        totalAmount: 0,
+        category: 'Ăn uống',
+        items: []
+      };
     }
   }
 };
