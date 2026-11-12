@@ -13,6 +13,7 @@ const state = {
   tripExpenses: [],
   activeTrip: null,
   tripActiveDay: 'ALL',
+  tripActiveTab: 'settlement',
   filter: {
     type: 'ALL',
     accountId: null
@@ -1166,9 +1167,47 @@ function renderTripsScreen() {
   `;
 }
 
+let selectedTripExpenseSharers = [];
+
+function getTripMembers(trip) {
+  if (trip && trip.members && Array.isArray(trip.members) && trip.members.length > 0) {
+    return trip.members;
+  }
+  const defaultMembers = [
+    { id: 'mem_me', name: 'Tôi', isCurrentUser: true },
+    { id: 'mem_tuan', name: 'Tuấn', isCurrentUser: false },
+    { id: 'mem_linh', name: 'Linh', isCurrentUser: false }
+  ];
+  if (trip) {
+    trip.members = defaultMembers;
+    putItem('trips', trip);
+  }
+  return defaultMembers;
+}
+
+function calculateTripSettlement(trip) {
+  const members = getTripMembers(trip);
+  const expenses = state.tripExpenses.filter((e) => e.tripId === trip.id);
+  const items = expenses.map((e) => ({
+    id: e.id,
+    title: e.title,
+    amount: e.amount,
+    paidByMemberId: e.payerMemberId || members[0].id,
+    splitAmongMemberIds: (e.sharerMemberIds && e.sharerMemberIds.length > 0) ? e.sharerMemberIds : members.map((m) => m.id)
+  }));
+  return SplitBillCalculator.calculate(trip.title, members, items);
+}
+
 function openTripDetail(tripId) {
   state.activeTrip = state.trips.find((t) => t.id === tripId);
   state.tripActiveDay = 'ALL';
+  const exps = state.tripExpenses.filter((e) => e.tripId === tripId);
+  state.tripActiveTab = exps.length > 0 ? 'settlement' : 'expenses';
+  renderApp();
+}
+
+function setTripTab(tab) {
+  state.tripActiveTab = tab;
   renderApp();
 }
 
@@ -1176,8 +1215,10 @@ function renderTripDetailScreen() {
   const trip = state.activeTrip;
   if (!trip) return renderTripsScreen();
 
+  const members = getTripMembers(trip);
   const allExpenses = state.tripExpenses.filter((e) => e.tripId === trip.id);
   const totalCost = allExpenses.reduce((s, e) => s + e.amount, 0);
+  const perPersonAvg = members.length > 0 ? totalCost / members.length : 0;
 
   let filteredExpenses = allExpenses;
   if (state.tripActiveDay !== 'ALL') {
@@ -1186,82 +1227,259 @@ function renderTripDetailScreen() {
 
   const daysCount = Math.max(1, trip.totalDays || 1);
   const daysArray = Array.from({ length: daysCount }, (_, i) => i + 1);
+  const isSettlement = state.tripActiveTab === 'settlement';
+  const calc = calculateTripSettlement(trip);
 
   return `
     <div class="space-y-4 pb-24">
+      <!-- Navigation Header -->
       <div class="flex items-center justify-between">
-        <button onclick="state.activeTrip = null; renderApp();" class="text-xs font-bold text-slate-500">← Quay lại danh sách</button>
-        <button onclick="deleteTrip('${trip.id}')" class="text-xs text-rose-500 font-semibold">Xóa chuyến đi</button>
+        <button onclick="state.activeTrip = null; renderApp();" class="flex items-center space-x-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition">
+          <i data-lucide="chevron-left" class="h-4 w-4"></i>
+          <span>Danh sách chuyến đi</span>
+        </button>
+        <button onclick="deleteTrip('${trip.id}')" class="text-xs text-rose-500 font-semibold hover:underline">Xóa chuyến đi</button>
       </div>
 
-      <!-- Header Trip Banner -->
-      <div class="rounded-3xl bg-gradient-to-br from-teal-600 to-emerald-800 p-5 text-white shadow-lg space-y-2">
-        <span class="text-xs font-semibold uppercase text-emerald-200">Chi tiết chuyến đi</span>
-        <h2 class="text-xl font-black">${trip.title}</h2>
-        <div class="flex justify-between border-t border-white/10 pt-2 text-xs">
-          <span>${trip.destination || 'Điểm đến'} • ${trip.totalDays} ngày</span>
-          <span class="text-sm font-extrabold text-amber-300">${formatMoney(totalCost)}</span>
+      <!-- Main Trip Header Banner -->
+      <div class="rounded-3xl bg-gradient-to-br from-teal-600 via-emerald-700 to-emerald-900 p-5 text-white shadow-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-100">
+            ${allExpenses.length > 0 ? '🟢 Đang tính toán quyết toán' : 'Chuyến đi mới'}
+          </span>
+          <span class="text-xs font-semibold text-emerald-100">${trip.destination || 'Việt Nam'} • ${trip.totalDays} ngày</span>
+        </div>
+        
+        <div>
+          <h2 class="text-xl font-black leading-tight">${trip.title}</h2>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 border-t border-white/15 pt-3">
+          <div>
+            <p class="text-[10px] text-emerald-200 uppercase font-bold">Tổng chi cả chuyến</p>
+            <p class="text-lg font-black text-amber-300 leading-none mt-0.5">${formatMoney(totalCost)}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-[10px] text-emerald-200 uppercase font-bold">Bình quân / người</p>
+            <p class="text-sm font-extrabold text-white leading-none mt-0.5">${formatMoney(perPersonAvg)}</p>
+          </div>
         </div>
       </div>
 
-      <!-- Day Tabs -->
-      <div class="flex items-center space-x-1.5 overflow-x-auto pb-1">
-        <button onclick="setTripDayFilter('ALL')" class="rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${state.tripActiveDay === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}">
-          Tất cả ngày (${allExpenses.length})
-        </button>
-        ${daysArray.map((d) => `
-          <button onclick="setTripDayFilter(${d})" class="rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${state.tripActiveDay === d ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}">
-            Ngày ${d}
-          </button>
-        `).join('')}
+      <!-- Trip Members Bar -->
+      <div class="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-1.5">
+            <i data-lucide="users" class="h-4 w-4 text-emerald-600"></i>
+            <span class="text-xs font-extrabold text-slate-800">Thành viên (${members.length})</span>
+          </div>
+          <button onclick="openAddTripMemberModal()" class="text-xs font-bold text-emerald-600 hover:text-emerald-700">+ Thêm bạn</button>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          ${members.map((m) => `
+            <span class="inline-flex items-center space-x-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${m.isCurrentUser ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
+              <span>${m.name}</span>
+              ${m.isCurrentUser ? '<span class="text-[9px] bg-emerald-600 text-white rounded-full px-1">Bạn</span>' : ''}
+              ${!m.isCurrentUser && members.length > 1 ? `<button onclick="removeTripMember('${m.id}')" title="Xóa" class="text-slate-400 hover:text-rose-600 ml-0.5 font-bold">×</button>` : ''}
+            </span>
+          `).join('')}
+        </div>
       </div>
 
-      <!-- Quick Action Buttons for Trip -->
-      <div class="grid grid-cols-2 gap-2">
-        <button onclick="openAddTripExpenseModal()" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700">
-          <i data-lucide="plus" class="h-4 w-4"></i>
-          <span>Thêm chi phí</span>
+      <!-- Mode Switcher: Chi phí vs Bảng quyết toán chia tiền -->
+      <div class="grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1 text-xs font-bold">
+        <button onclick="setTripTab('settlement')" class="rounded-xl py-2.5 transition active:scale-95 ${isSettlement ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+          ⚡ Quyết toán & Chia tiền
         </button>
-        <button onclick="openOcrScanModal('trip')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-purple-50 py-2.5 text-xs font-bold text-purple-700">
-          <i data-lucide="scan-line" class="h-4 w-4"></i>
-          <span>Quét Bill AI</span>
+        <button onclick="setTripTab('expenses')" class="rounded-xl py-2.5 transition active:scale-95 ${!isSettlement ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+          📋 Chi phí theo ngày (${allExpenses.length})
         </button>
       </div>
 
-      <!-- Expense Items for Trip -->
-      <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
-        <h3 class="text-sm font-bold text-slate-800">
-          Khoản chi ${state.tripActiveDay === 'ALL' ? 'toàn bộ chuyến đi' : `Ngày ${state.tripActiveDay}`} (${filteredExpenses.length})
-        </h3>
-
-        ${filteredExpenses.length === 0 ? `
-          <p class="text-center py-4 text-xs text-slate-400">Chưa có khoản chi nào cho ngày này.</p>
-        ` : `
-          <div class="space-y-2">
-            ${filteredExpenses.map((exp) => `
-              <div class="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs">
-                <div>
-                  <p class="font-bold text-slate-800">${exp.title}</p>
-                  <p class="text-[11px] text-slate-400">Ngày ${exp.dayIndex || 1} • ${new Date(exp.timestamp).toLocaleDateString('vi-VN')}</p>
-                </div>
-                <div class="flex items-center space-x-2">
-                  <span class="font-extrabold text-slate-900">${formatMoney(exp.amount)}</span>
-                  <button onclick="deleteTripExpense('${exp.id}')" class="text-slate-300 hover:text-rose-500">×</button>
-                </div>
+      ${isSettlement ? `
+        <!-- SETTLEMENT & CALCULATION VIEW -->
+        <div class="space-y-4">
+          
+          <!-- Net Balance Card for 'Me' -->
+          <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+            <h3 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Tổng kết tài chính của Bạn (Tôi)</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl bg-slate-50 p-3">
+                <span class="text-[10px] font-bold text-slate-500 uppercase">Phần bạn cần chia</span>
+                <p class="text-base font-black text-slate-900 mt-0.5">${formatMoney(calc.myActualShare)}</p>
               </div>
+              <div class="rounded-2xl ${calc.myNetBalance > 1 ? 'bg-emerald-50 text-emerald-800' : (calc.myNetBalance < -1 ? 'bg-rose-50 text-rose-800' : 'bg-slate-50 text-slate-700')} p-3">
+                <span class="text-[10px] font-bold uppercase ${calc.myNetBalance > 1 ? 'text-emerald-600' : (calc.myNetBalance < -1 ? 'text-rose-600' : 'text-slate-500')}">
+                  ${calc.myNetBalance > 1 ? 'Được nhận lại' : (calc.myNetBalance < -1 ? 'Cần chuyển thêm' : 'Số dư')}
+                </span>
+                <p class="text-base font-black mt-0.5">
+                  ${calc.myNetBalance > 1 ? '+' : ''}${formatMoney(calc.myNetBalance)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Member Breakdown List -->
+          <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-extrabold text-slate-800">Chi tiết chi tiêu từng người</h3>
+              <span class="text-[10px] text-slate-400 font-semibold">${calc.memberSummaries.length} thành viên</span>
+            </div>
+            
+            <div class="space-y-2">
+              ${calc.memberSummaries.map((ms) => `
+                <div class="rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-slate-800 flex items-center space-x-1">
+                      <span>${ms.member.name}</span>
+                      ${ms.member.isCurrentUser ? '<span class="text-[9px] bg-emerald-600 text-white rounded px-1 font-extrabold">Tôi</span>' : ''}
+                    </span>
+                    <span class="font-extrabold ${ms.netBalance > 1 ? 'text-emerald-600' : (ms.netBalance < -1 ? 'text-rose-600' : 'text-slate-500')}">
+                      ${ms.netBalance > 1 ? `Nhận lại: +${formatMoney(ms.netBalance)}` : (ms.netBalance < -1 ? `Cần trả: -${formatMoney(Math.abs(ms.netBalance))}` : 'Đã đủ')}
+                    </span>
+                  </div>
+                  <div class="flex justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                    <span>Đã chi trước: <b>${formatMoney(ms.totalPaid)}</b></span>
+                    <span>Phần cần chia: <b>${formatMoney(ms.fairShare)}</b></span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Optimal Settlement Transactions -->
+          <div class="rounded-3xl border border-indigo-100 bg-indigo-50/30 p-5 shadow-sm space-y-3">
+            <div class="flex items-center space-x-2">
+              <div class="flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm">
+                <i data-lucide="arrow-right-left" class="h-3.5 w-3.5"></i>
+              </div>
+              <h3 class="text-sm font-extrabold text-slate-800">Kế hoạch chuyển khoản gọn nhất</h3>
+            </div>
+            <p class="text-[11px] text-slate-500 leading-tight">AI tự động tối ưu để giảm thiểu tối đa số lần chuyển tiền giữa các bạn:</p>
+
+            ${calc.settlements.length === 0 ? `
+              <div class="rounded-2xl bg-white p-4 text-center border border-indigo-100 space-y-1">
+                <p class="text-xs font-bold text-emerald-600">🎉 Mọi người đã chia đều và không nợ nhau!</p>
+                <p class="text-[10px] text-slate-400">Không cần thực hiện thêm giao dịch chuyển khoản nào.</p>
+              </div>
+            ` : `
+              <div class="space-y-2">
+                ${calc.settlements.map((s, idx) => `
+                  <div class="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm border border-indigo-100/80">
+                    <div class="flex items-center space-x-2">
+                      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">${idx + 1}</span>
+                      <div class="text-xs">
+                        <span class="font-extrabold ${s.fromIsMe ? 'text-rose-600 underline' : 'text-slate-800'}">${s.fromMemberName}</span>
+                        <span class="text-slate-400 mx-1">chuyển cho</span>
+                        <span class="font-extrabold ${s.toIsMe ? 'text-emerald-600 underline' : 'text-slate-800'}">${s.toMemberName}</span>
+                      </div>
+                    </div>
+                    <span class="text-xs font-black text-indigo-700">${formatMoney(s.amount)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Settlement Action Tools -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button onclick="copyTripSettlementText('${trip.id}')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-indigo-600 py-3 text-xs font-bold text-white shadow hover:bg-indigo-700 transition active:scale-95">
+              <i data-lucide="copy" class="h-4 w-4"></i>
+              <span>Sao chép kết quả</span>
+            </button>
+            <button onclick="saveTripMyShareToPersonal('${trip.id}')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-emerald-600 py-3 text-xs font-bold text-white shadow hover:bg-emerald-700 transition active:scale-95">
+              <i data-lucide="wallet" class="h-4 w-4"></i>
+              <span>Ghi vào ví cá nhân</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="exportTripCsv('${trip.id}')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-slate-100 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              <span>Xuất file CSV</span>
+            </button>
+            <button onclick="syncTripToSplitBill('${trip.id}')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-purple-50 py-2.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition">
+              <i data-lucide="users" class="h-4 w-4"></i>
+              <span>Đưa sang Chia tiền AI</span>
+            </button>
+          </div>
+
+        </div>
+      ` : `
+        <!-- EXPENSES BY DAY VIEW -->
+        <div class="space-y-4">
+          <!-- Day Tabs -->
+          <div class="flex items-center space-x-1.5 overflow-x-auto pb-1">
+            <button onclick="setTripDayFilter('ALL')" class="rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${state.tripActiveDay === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}">
+              Tất cả (${allExpenses.length})
+            </button>
+            ${daysArray.map((d) => `
+              <button onclick="setTripDayFilter(${d})" class="rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap transition ${state.tripActiveDay === d ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}">
+                Ngày ${d}
+              </button>
             `).join('')}
           </div>
-        `}
-      </div>
 
-      <!-- Sync to Split Bill Card -->
-      <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-2">
-        <h3 class="text-sm font-bold text-slate-800">Chia tiền nhóm cho chuyến đi</h3>
-        <p class="text-xs text-slate-500">Chuyển toàn bộ các khoản chi trong chuyến đi này sang phần Chia tiền để AI tự động tính nợ giữa các thành viên.</p>
-        <button onclick="syncTripToSplitBill('${trip.id}')" class="w-full rounded-2xl bg-indigo-600 py-3 text-xs font-bold text-white shadow hover:bg-indigo-700">
-          ⚡ Đưa sang Chia tiền AI
-        </button>
-      </div>
+          <!-- Quick Action Buttons for Trip -->
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="openAddTripExpenseModal()" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-emerald-50 py-2.5 text-xs font-bold text-emerald-700 transition active:scale-95 hover:bg-emerald-100">
+              <i data-lucide="plus" class="h-4 w-4"></i>
+              <span>Thêm chi phí</span>
+            </button>
+            <button onclick="openOcrScanModal('trip')" class="flex items-center justify-center space-x-1.5 rounded-2xl bg-purple-50 py-2.5 text-xs font-bold text-purple-700 transition active:scale-95 hover:bg-purple-100">
+              <i data-lucide="scan-line" class="h-4 w-4"></i>
+              <span>Quét Bill AI</span>
+            </button>
+          </div>
+
+          <!-- Expense Items List -->
+          <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800">
+              Khoản chi ${state.tripActiveDay === 'ALL' ? 'toàn bộ chuyến đi' : `Ngày ${state.tripActiveDay}`} (${filteredExpenses.length})
+            </h3>
+
+            ${filteredExpenses.length === 0 ? `
+              <div class="py-8 text-center text-slate-400 space-y-2">
+                <i data-lucide="receipt" class="h-8 w-8 mx-auto text-slate-300"></i>
+                <p class="text-xs">Chưa có khoản chi nào cho ngày này.</p>
+              </div>
+            ` : `
+              <div class="space-y-2">
+                ${filteredExpenses.map((exp) => {
+                  const payer = members.find((m) => m.id === exp.payerMemberId);
+                  const payerName = payer ? payer.name : (members[0]?.name || 'Tôi');
+                  const sharerCount = (exp.sharerMemberIds && exp.sharerMemberIds.length > 0) ? exp.sharerMemberIds.length : members.length;
+                  return `
+                    <div class="flex items-center justify-between rounded-2xl bg-slate-50 p-3 text-xs border border-slate-100">
+                      <div>
+                        <p class="font-bold text-slate-800">${exp.title}</p>
+                        <p class="text-[10px] text-slate-500 font-medium">
+                          Ngày ${exp.dayIndex || 1} • <span class="text-emerald-700 font-bold">${payerName} trả</span> • Chia ${sharerCount}/${members.length} người
+                        </p>
+                      </div>
+                      <div class="flex items-center space-x-2">
+                        <span class="font-extrabold text-slate-900">${formatMoney(exp.amount)}</span>
+                        <button onclick="deleteTripExpense('${exp.id}')" title="Xóa" class="h-6 w-6 rounded-full flex items-center justify-center text-slate-300 hover:text-rose-500 transition">×</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Bottom Switch to Settlement Banner -->
+          <div class="rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 shadow-sm flex items-center justify-between">
+            <div>
+              <p class="text-xs font-extrabold text-indigo-950">Đã xong chuyến đi?</p>
+              <p class="text-[10px] text-indigo-600">Bấm để AI tính toán chia nợ sòng phẳng</p>
+            </div>
+            <button onclick="setTripTab('settlement')" class="rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-indigo-700 transition active:scale-95">
+              ⚡ Xem quyết toán
+            </button>
+          </div>
+        </div>
+      `}
     </div>
   `;
 }
@@ -1275,17 +1493,30 @@ async function submitCreateTrip() {
   const title = document.getElementById('trip-title').value.trim();
   const destination = document.getElementById('trip-destination').value.trim();
   const days = parseInt(document.getElementById('trip-days').value || '3', 10) || 3;
+  const membersStr = document.getElementById('trip-members')?.value || 'Tôi, Tuấn, Linh';
 
   if (!title) {
     alert('Vui lòng nhập tên chuyến đi!');
     return;
   }
 
+  const rawNames = membersStr.split(',').map((n) => n.trim()).filter(Boolean);
+  const members = rawNames.length > 0 ? rawNames.map((name, idx) => ({
+    id: idx === 0 ? 'mem_me' : 'mem_' + Date.now() + '_' + idx,
+    name,
+    isCurrentUser: idx === 0 || name.toLowerCase() === 'tôi'
+  })) : [
+    { id: 'mem_me', name: 'Tôi', isCurrentUser: true },
+    { id: 'mem_tuan', name: 'Tuấn', isCurrentUser: false },
+    { id: 'mem_linh', name: 'Linh', isCurrentUser: false }
+  ];
+
   const newTrip = {
     id: 'trip_' + Date.now(),
     title,
     destination: destination || 'Việt Nam',
     totalDays: days,
+    members,
     createdAt: Date.now()
   };
 
@@ -1293,21 +1524,133 @@ async function submitCreateTrip() {
   await loadData();
   closeModal('create-trip-modal');
   state.activeTrip = newTrip;
+  state.tripActiveTab = 'expenses';
   renderApp();
+}
+
+function openAddTripMemberModal() {
+  if (!state.activeTrip) return;
+  const input = document.getElementById('new-trip-member-name');
+  if (input) input.value = '';
+  openModal('add-trip-member-modal');
+}
+
+async function submitAddTripMember() {
+  if (!state.activeTrip) return;
+  const name = document.getElementById('new-trip-member-name').value.trim();
+  if (!name) {
+    alert('Vui lòng nhập tên thành viên!');
+    return;
+  }
+  const members = getTripMembers(state.activeTrip);
+  if (members.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+    alert('Thành viên này đã có trong chuyến đi!');
+    return;
+  }
+  const newMember = {
+    id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+    name,
+    isCurrentUser: false
+  };
+  members.push(newMember);
+  state.activeTrip.members = members;
+  await putItem('trips', state.activeTrip);
+  await loadData();
+  closeModal('add-trip-member-modal');
+  renderApp();
+}
+
+async function removeTripMember(memberId) {
+  if (!state.activeTrip) return;
+  const members = getTripMembers(state.activeTrip);
+  const target = members.find((m) => m.id === memberId);
+  if (!target || target.isCurrentUser) return;
+
+  const exps = state.tripExpenses.filter((e) => e.tripId === state.activeTrip.id);
+  const hasExpenses = exps.some((e) => e.payerMemberId === memberId || (e.sharerMemberIds && e.sharerMemberIds.includes(memberId)));
+  if (hasExpenses) {
+    alert(`Không thể xóa "${target.name}" vì đang có khoản chi liên quan đến người này.`);
+    return;
+  }
+
+  if (confirm(`Bạn có chắc muốn xóa "${target.name}" khỏi chuyến đi?`)) {
+    state.activeTrip.members = members.filter((m) => m.id !== memberId);
+    await putItem('trips', state.activeTrip);
+    await loadData();
+    renderApp();
+  }
 }
 
 function openAddTripExpenseModal() {
   if (!state.activeTrip) return;
+  const trip = state.activeTrip;
+  const members = getTripMembers(trip);
+
   const selDay = document.getElementById('trip-exp-day');
   if (selDay) {
-    const daysCount = Math.max(1, state.activeTrip.totalDays || 1);
+    const daysCount = Math.max(1, trip.totalDays || 1);
     selDay.innerHTML = Array.from({ length: daysCount }, (_, i) => `
       <option value="${i + 1}" ${state.tripActiveDay == i + 1 ? 'selected' : ''}>Ngày ${i + 1}</option>
     `).join('');
   }
+
+  const selPayer = document.getElementById('trip-exp-payer');
+  if (selPayer) {
+    selPayer.innerHTML = members.map((m) => `
+      <option value="${m.id}">${m.name} ${m.isCurrentUser ? '(Tôi)' : ''}</option>
+    `).join('');
+  }
+
+  selectedTripExpenseSharers = members.map((m) => m.id);
+  populateTripExpenseSharers();
+
   document.getElementById('trip-exp-title').value = '';
   document.getElementById('trip-exp-amount').value = '';
   openModal('add-trip-expense-modal');
+}
+
+function populateTripExpenseSharers() {
+  const container = document.getElementById('trip-exp-sharers');
+  if (!container || !state.activeTrip) return;
+  const members = getTripMembers(state.activeTrip);
+  container.innerHTML = members.map((m) => {
+    const isSelected = selectedTripExpenseSharers.includes(m.id);
+    return `
+      <button type="button" onclick="toggleTripSharer('${m.id}')" class="rounded-full px-3 py-1 text-xs font-semibold border transition active:scale-95 ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200'}">
+        ${isSelected ? '✓ ' : ''}${m.name}
+      </button>
+    `;
+  }).join('');
+
+  const btnToggle = document.getElementById('btn-toggle-trip-sharers');
+  if (btnToggle) {
+    btnToggle.innerText = selectedTripExpenseSharers.length === members.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả';
+  }
+}
+
+function toggleTripSharer(memberId) {
+  if (selectedTripExpenseSharers.includes(memberId)) {
+    if (selectedTripExpenseSharers.length > 1) {
+      selectedTripExpenseSharers = selectedTripExpenseSharers.filter((id) => id !== memberId);
+    } else {
+      alert('Phải có ít nhất 1 người tham gia chia chi phí!');
+      return;
+    }
+  } else {
+    selectedTripExpenseSharers.push(memberId);
+  }
+  populateTripExpenseSharers();
+}
+
+function toggleSelectAllTripSharers() {
+  if (!state.activeTrip) return;
+  const members = getTripMembers(state.activeTrip);
+  if (selectedTripExpenseSharers.length === members.length) {
+    selectedTripExpenseSharers = [members[0].id];
+  } else {
+    selectedTripExpenseSharers = members.map((m) => m.id);
+  }
+  populateTripExpenseSharers();
 }
 
 async function submitAddTripExpense() {
@@ -1316,6 +1659,7 @@ async function submitAddTripExpense() {
   const amtStr = document.getElementById('trip-exp-amount').value;
   const amount = parseMoneyInput(amtStr);
   const dayIndex = parseInt(document.getElementById('trip-exp-day').value || '1', 10) || 1;
+  const payerId = document.getElementById('trip-exp-payer')?.value || (getTripMembers(state.activeTrip)[0]?.id || 'mem_me');
 
   if (!title) {
     alert('Vui lòng nhập tên khoản chi!');
@@ -1326,12 +1670,17 @@ async function submitAddTripExpense() {
     return;
   }
 
+  const members = getTripMembers(state.activeTrip);
+  const sharers = selectedTripExpenseSharers.length > 0 ? [...selectedTripExpenseSharers] : members.map((m) => m.id);
+
   const newExp = {
     id: 'tripexp_' + Date.now(),
     tripId: state.activeTrip.id,
     dayIndex,
     title,
     amount,
+    payerMemberId: payerId,
+    sharerMemberIds: sharers,
     timestamp: Date.now()
   };
 
@@ -1357,26 +1706,161 @@ async function deleteTrip(tripId) {
 }
 
 function syncTripToSplitBill(tripId) {
-  const trip = state.trips.find((t) => t.id === tripId);
+  const trip = state.trips.find((t) => t.id === tripId) || state.activeTrip;
   if (!trip) return;
 
-  const expenses = state.tripExpenses.filter((e) => e.tripId === tripId);
+  const expenses = state.tripExpenses.filter((e) => e.tripId === trip.id);
   if (expenses.length === 0) {
     alert('Chuyến đi này chưa có khoản chi nào để chia tiền!');
     return;
   }
 
+  const members = getTripMembers(trip);
   state.splitBill.eventTitle = trip.title;
+  state.splitBill.members = JSON.parse(JSON.stringify(members));
   state.splitBill.items = expenses.map((e) => ({
     id: 'item_' + e.id,
     title: `[Ngày ${e.dayIndex || 1}] ${e.title}`,
     amount: e.amount,
-    paidByMemberId: state.splitBill.members[0].id,
-    splitAmongMemberIds: []
+    paidByMemberId: e.payerMemberId || members[0].id,
+    splitAmongMemberIds: (e.sharerMemberIds && e.sharerMemberIds.length > 0) ? e.sharerMemberIds : members.map((m) => m.id)
   }));
+  state.splitBill.result = SplitBillCalculator.calculate(trip.title, state.splitBill.members, state.splitBill.items);
 
   switchTab('split');
-  alert(`⚡ Đã chuyển thành công ${expenses.length} khoản chi sang mục Chia tiền!`);
+  alert(`⚡ Đã chuyển toàn bộ ${expenses.length} khoản chi sang bảng Chia tiền và tự động tính toán!`);
+}
+
+function copyTripSettlementText(tripId) {
+  const trip = state.trips.find((t) => t.id === tripId) || state.activeTrip;
+  if (!trip) return;
+
+  const expenses = state.tripExpenses.filter((e) => e.tripId === trip.id);
+  const members = getTripMembers(trip);
+  const calc = calculateTripSettlement(trip);
+
+  let text = `🎉 BẢNG QUYẾT TOÁN CHUYẾN ĐI: ${trip.title.toUpperCase()}\n`;
+  text += `📍 Điểm đến: ${trip.destination || 'Việt Nam'} (${trip.totalDays} ngày)\n`;
+  text += `💰 Tổng chi phí: ${formatMoney(calc.totalAmount)}\n`;
+  text += `👥 Trung bình mỗi người: ${formatMoney(calc.perPersonAvg)}\n\n`;
+
+  text += `📊 CHI TIẾT TỪNG THÀNH VIÊN:\n`;
+  calc.memberSummaries.forEach((ms) => {
+    const status = ms.netBalance > 1
+      ? `-> Nhận lại: +${formatMoney(ms.netBalance)}`
+      : (ms.netBalance < -1 ? `-> Cần chuyển: -${formatMoney(Math.abs(ms.netBalance))}` : `-> Đã thanh toán đủ`);
+    text += `• ${ms.member.name}${ms.member.isCurrentUser ? ' (Tôi)' : ''}: Đã chi ${formatMoney(ms.totalPaid)} | Phần chia ${formatMoney(ms.fairShare)} ${status}\n`;
+  });
+
+  text += `\n⚡ KẾ HOẠCH CHUYỂN KHOẢN TỐI ƯU:\n`;
+  if (calc.settlements.length === 0) {
+    text += `• Mọi người đã thanh toán cân bằng, không cần chuyển khoản thêm.\n`;
+  } else {
+    calc.settlements.forEach((s, idx) => {
+      text += `${idx + 1}. ${s.fromMemberName} chuyển cho ${s.toMemberName}: ${formatMoney(s.amount)}\n`;
+    });
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('📋 Đã sao chép bảng quyết toán chuyến đi vào clipboard! Bạn có thể dán vào nhóm Zalo / Messenger.');
+    }).catch(() => {
+      prompt('Sao chép nội dung bên dưới:', text);
+    });
+  } else {
+    prompt('Sao chép nội dung bên dưới:', text);
+  }
+}
+
+async function saveTripMyShareToPersonal(tripId) {
+  const trip = state.trips.find((t) => t.id === tripId) || state.activeTrip;
+  if (!trip) return;
+
+  const calc = calculateTripSettlement(trip);
+  if (calc.myActualShare <= 0) {
+    alert('Không có chi phí cá nhân nào cần ghi nhận.');
+    return;
+  }
+
+  if (confirm(`Ghi nhận khoản chi tiêu thực tế ${formatMoney(calc.myActualShare)} của bạn cho chuyến đi "${trip.title}" vào sổ chi tiêu?`)) {
+    const cat = state.categories.find((c) => c.type === 'EXPENSE' && (c.id === 'travel' || c.name.includes('Du lịch') || c.name.includes('Di chuyển'))) || state.categories[0];
+    const acc = state.accounts[0];
+
+    await addTransaction({
+      amount: calc.myActualShare,
+      type: 'EXPENSE',
+      categoryId: cat ? cat.id : 'travel',
+      accountId: acc ? acc.id : 1,
+      note: `Chi phí chuyến đi: ${trip.title}`,
+      timestamp: Date.now()
+    });
+
+    alert(`✅ Đã ghi nhận ${formatMoney(calc.myActualShare)} vào sổ Chi tiêu cá nhân!`);
+  }
+}
+
+function exportTripCsv(tripId) {
+  const trip = state.trips.find((t) => t.id === tripId) || state.activeTrip;
+  if (!trip) return;
+
+  const expenses = state.tripExpenses.filter((e) => e.tripId === trip.id);
+  const members = getTripMembers(trip);
+  const calc = calculateTripSettlement(trip);
+
+  const rows = [
+    ['BANG QUYET TOAN CHUYEN DI', trip.title],
+    ['Diem den', trip.destination || 'Viet Nam'],
+    ['So ngay', trip.totalDays],
+    ['Tong chi phi (VND)', calc.totalAmount],
+    ['Binh quan moi nguoi (VND)', calc.perPersonAvg],
+    [],
+    ['--- CHI TIET KHOAN CHI ---'],
+    ['Ngay', 'Ten khoan chi', 'So tien (VND)', 'Nguoi tra', 'So nguoi chia']
+  ];
+
+  expenses.forEach((e) => {
+    const payer = members.find((m) => m.id === e.payerMemberId)?.name || 'Toi';
+    const sharers = (e.sharerMemberIds && e.sharerMemberIds.length > 0) ? e.sharerMemberIds.length : members.length;
+    rows.push([
+      `Ngay ${e.dayIndex || 1}`,
+      `"${e.title.replace(/"/g, '""')}"`,
+      e.amount,
+      `"${payer}"`,
+      `"${sharers}/${members.length} nguoi"`
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['--- TONG KET THANH VIEN ---']);
+  rows.push(['Thanh vien', 'Da chi truoc (VND)', 'Phan can chia (VND)', 'Chenh lech rong (VND)']);
+  calc.memberSummaries.forEach((ms) => {
+    rows.push([
+      `"${ms.member.name}"`,
+      ms.totalPaid,
+      ms.fairShare,
+      ms.netBalance
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(['--- KE HOACH CHUYEN KHOAN TOI UU ---']);
+  rows.push(['Nguoi chuyen', 'Nguoi nhan', 'So tien (VND)']);
+  calc.settlements.forEach((s) => {
+    rows.push([
+      `"${s.fromMemberName}"`,
+      `"${s.toMemberName}"`,
+      s.amount
+    ]);
+  });
+
+  const csvContent = '\uFEFF' + rows.map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `QuyetToan_${trip.title.replace(/\s+/g, '_')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ----------------- INVESTMENTS SCREEN -----------------
@@ -1744,10 +2228,18 @@ function openOcrScanModal(target = 'split') {
   const srcView = document.getElementById('ocr-source-view');
   const loadView = document.getElementById('ocr-loading-view');
   const resView = document.getElementById('ocr-result-view');
+  const btnTrip = document.getElementById('btn-ocr-trip');
 
   if (srcView) srcView.classList.remove('hidden');
   if (loadView) loadView.classList.add('hidden');
   if (resView) resView.classList.add('hidden');
+  if (btnTrip) {
+    if (target === 'trip' && state.activeTrip) {
+      btnTrip.classList.remove('hidden');
+    } else {
+      btnTrip.classList.add('hidden');
+    }
+  }
 
   openModal('ocr-modal');
 }
@@ -1879,6 +2371,46 @@ async function applyOcrToPersonalTx() {
   closeModal('ocr-modal');
   switchTab('home');
   alert(`⚡ Đã lưu hóa đơn ${formatMoney(res.totalAmount)} vào mục Chi tiêu!`);
+}
+
+async function applyOcrToTrip() {
+  const res = state.scannedOcrResult;
+  if (!res || !state.activeTrip) return;
+  const dayIndex = state.tripActiveDay !== 'ALL' ? Number(state.tripActiveDay) : 1;
+  const members = getTripMembers(state.activeTrip);
+  const payerId = members[0]?.id || 'mem_me';
+  const sharerIds = members.map((m) => m.id);
+
+  if (res.items && res.items.length > 0) {
+    for (const item of res.items) {
+      await putItem('tripExpenses', {
+        id: 'tripexp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        tripId: state.activeTrip.id,
+        dayIndex,
+        title: item.name,
+        amount: item.amount,
+        payerMemberId: payerId,
+        sharerMemberIds: sharerIds,
+        timestamp: Date.now()
+      });
+    }
+  } else if (res.totalAmount > 0) {
+    await putItem('tripExpenses', {
+      id: 'tripexp_' + Date.now(),
+      tripId: state.activeTrip.id,
+      dayIndex,
+      title: res.storeName || 'Hóa đơn quét AI',
+      amount: res.totalAmount,
+      payerMemberId: payerId,
+      sharerMemberIds: sharerIds,
+      timestamp: Date.now()
+    });
+  }
+
+  await loadData();
+  closeModal('ocr-modal');
+  renderApp();
+  alert(`⚡ Đã thêm các khoản chi từ hóa đơn vào chuyến đi "${state.activeTrip.title}"!`);
 }
 
 // ----------------- MODAL UTILITIES -----------------
