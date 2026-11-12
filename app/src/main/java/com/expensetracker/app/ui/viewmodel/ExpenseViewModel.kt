@@ -11,6 +11,7 @@ import com.expensetracker.app.data.local.entity.*
 import com.expensetracker.app.data.model.SplitExpenseItem
 import com.expensetracker.app.data.model.SplitMember
 import com.expensetracker.app.data.repository.ExpenseRepository
+import com.expensetracker.app.ui.components.BarChartItem
 import com.expensetracker.app.utils.CsvExporter
 import com.expensetracker.app.utils.CurrencyUtils
 import com.expensetracker.app.utils.DateUtils
@@ -23,6 +24,11 @@ import java.util.UUID
 
 enum class TimePeriod {
     THIS_WEEK, THIS_MONTH, THIS_YEAR
+}
+
+enum class ComparisonPeriod {
+    WEEKLY,   // So sánh chi tiêu giữa các tuần trong tháng
+    MONTHLY   // So sánh chi tiêu giữa 6 tháng gần nhất
 }
 
 enum class MessageSender {
@@ -130,6 +136,90 @@ class ExpenseViewModel(
         val (start, end) = getRangeForPeriod(period)
         repository.getTotalAmountInRange(TransactionType.INCOME, start, end).map { it ?: 0.0 }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // So sánh chi tiêu dạng biểu đồ cột giữa các tuần / các tháng
+    private val _comparisonPeriod = MutableStateFlow(ComparisonPeriod.WEEKLY)
+    val comparisonPeriod: StateFlow<ComparisonPeriod> = _comparisonPeriod.asStateFlow()
+
+    fun setComparisonPeriod(period: ComparisonPeriod) {
+        _comparisonPeriod.value = period
+    }
+
+    val weeklyComparisonBars: StateFlow<List<BarChartItem>> = repository.allTransactions.map { txList ->
+        calculateWeeklyComparison(txList)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthlyComparisonBars: StateFlow<List<BarChartItem>> = repository.allTransactions.map { txList ->
+        calculateMonthlyComparison(txList)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun calculateWeeklyComparison(txList: List<TransactionEntity>): List<BarChartItem> {
+        val now = Calendar.getInstance()
+        val maxDaysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val month = now.get(Calendar.MONTH) + 1
+        val year = now.get(Calendar.YEAR)
+
+        val expenses = txList.filter { it.type == TransactionType.EXPENSE }
+
+        fun getTimestamp(day: Int, hour: Int, min: Int, sec: Int, ms: Int): Long {
+            return Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month - 1)
+                set(Calendar.DAY_OF_MONTH, day)
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, min)
+                set(Calendar.SECOND, sec)
+                set(Calendar.MILLISECOND, ms)
+            }.timeInMillis
+        }
+
+        val weekRanges = mutableListOf<Triple<String, String, Pair<Long, Long>>>()
+        weekRanges.add(Triple("Tuần 1", "01-07", Pair(getTimestamp(1, 0, 0, 0, 0), getTimestamp(7, 23, 59, 59, 999))))
+        weekRanges.add(Triple("Tuần 2", "08-14", Pair(getTimestamp(8, 0, 0, 0, 0), getTimestamp(14, 23, 59, 59, 999))))
+        weekRanges.add(Triple("Tuần 3", "15-21", Pair(getTimestamp(15, 0, 0, 0, 0), getTimestamp(21, 23, 59, 59, 999))))
+        weekRanges.add(Triple("Tuần 4", "22-28", Pair(getTimestamp(22, 0, 0, 0, 0), getTimestamp(28, 23, 59, 59, 999))))
+        if (maxDaysInMonth > 28) {
+            weekRanges.add(Triple("Tuần 5", "29-$maxDaysInMonth", Pair(getTimestamp(29, 0, 0, 0, 0), getTimestamp(maxDaysInMonth, 23, 59, 59, 999))))
+        }
+
+        return weekRanges.map { (title, subLabel, range) ->
+            val (start, end) = range
+            val total = expenses.filter { it.timestamp in start..end }.sumOf { it.amount }
+            val isCurrent = now.timeInMillis in start..end
+            BarChartItem(
+                label = title,
+                subLabel = subLabel,
+                value = total,
+                isCurrent = isCurrent
+            )
+        }
+    }
+
+    private fun calculateMonthlyComparison(txList: List<TransactionEntity>): List<BarChartItem> {
+        val expenses = txList.filter { it.type == TransactionType.EXPENSE }
+        val result = mutableListOf<BarChartItem>()
+
+        for (i in 5 downTo 0) {
+            val cal = Calendar.getInstance().apply {
+                add(Calendar.MONTH, -i)
+            }
+            val m = cal.get(Calendar.MONTH) + 1
+            val y = cal.get(Calendar.YEAR)
+            val start = DateUtils.getStartOfMonth(m, y)
+            val end = DateUtils.getEndOfMonth(m, y)
+
+            val total = expenses.filter { it.timestamp in start..end }.sumOf { it.amount }
+            result.add(
+                BarChartItem(
+                    label = "Th $m",
+                    subLabel = if (m == 1 || i == 5) "$y" else "",
+                    value = total,
+                    isCurrent = (i == 0)
+                )
+            )
+        }
+        return result
+    }
 
     private fun getRangeForPeriod(period: TimePeriod): Pair<Long, Long> {
         return when (period) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expense-manager-cache-v1';
+const CACHE_NAME = 'expense-manager-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

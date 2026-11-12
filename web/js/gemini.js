@@ -5,9 +5,9 @@ const GeminiManager = {
   DEFAULT_MODEL: 'gemini-3.1-flash-lite',
 
   AVAILABLE_MODELS: [
-    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (Mặc định - Mới nhất & Siêu nhanh)' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (Mặc định - Nhanh & Mới nhất)' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Thế hệ mới, đa phương thức & tư duy)' },
-    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Phản hồi tức thì, tiết kiệm chi phí)' }
+    { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Phản hồi tức thì, tối ưu chi phí)' }
   ],
 
   async getApiKey() {
@@ -32,7 +32,7 @@ const GeminiManager = {
   async chatWithAi(userMessage, imageBase64 = null) {
     const apiKey = await this.getApiKey();
     if (!apiKey) {
-      throw new Error('Vui lòng cài đặt Gemini API Key trong mục Trợ lý AI hoặc Cài đặt trước khi tiếp tục.');
+      throw new Error('Vui lòng cài đặt Gemini API Key trong mục Cài đặt trước khi tiếp tục.');
     }
 
     const model = await this.getSelectedModel();
@@ -46,7 +46,7 @@ Nhiệm vụ của bạn:
 {
   "action": "add_transaction",
   "amount": 45000,
-  "type": "EXPENSE", // hoặc "INCOME"
+  "type": "EXPENSE",
   "category": "Ăn uống",
   "note": "Ăn phở"
 }
@@ -120,7 +120,7 @@ Nhiệm vụ của bạn:
   async scanReceipt(imageBase64) {
     const apiKey = await this.getApiKey();
     if (!apiKey) {
-      throw new Error('Chưa cấu hình API Key. Vui lòng bấm vào biểu tượng chìa khóa ở góc trên để nhập Gemini API Key.');
+      throw new Error('Chưa cấu hình API Key. Vui lòng vào Cài đặt để nhập Gemini API Key.');
     }
 
     const model = await this.getSelectedModel();
@@ -140,7 +140,7 @@ Hãy đọc hình ảnh hóa đơn này và trả về DUY NHẤT một chuỗi 
 
 Quy tắc nghiêm ngặt:
 - "name": Tên món ăn hoặc sản phẩm cụ thể (bỏ qua dòng tiêu đề nhà hàng, ngày giờ, số bàn).
-- "quantity": Số lượng (mặc định là 1 nếu không ghi).
+- "quantity": Số lượng (mặc định là 1 nếu không ghi rõ).
 - "amount": Thành tiền của món đó (đơn vị VND, là số nguyên number, ví dụ 45000, 120000; KHÔNG kèm chữ 'đ', 'k', dấu chấm hay phẩy).
 - Bỏ qua dòng TỔNG CỘNG, VAT, GIẢM GIÁ hoặc TIỀN THỪA.
 - Nếu không thấy món nào, trả về: {"items": []}

@@ -168,13 +168,11 @@ fun MainAppNavHost(
                          currentRoute != Screen.Trips.route &&
                          currentRoute?.startsWith("trip_detail") != true
 
-    val isImeVisible = WindowInsets.isImeVisible
-
     CompositionLocalProvider(LocalWindowSizeInfo provides windowSizeInfo) {
         Scaffold(
             bottomBar = {
-                // Show floating bottom bar only on compact screens (e.g. phones in portrait) and when soft keyboard is closed
-                if (!isWideScreen && showNavigation && !isImeVisible) {
+                // Show floating bottom bar only on compact screens (e.g. phones in portrait)
+                if (!isWideScreen && showNavigation) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

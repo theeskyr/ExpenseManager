@@ -25,10 +25,13 @@ import com.expensetracker.app.data.local.entity.CategoryEntity
 import com.expensetracker.app.ui.components.CategoryIcon
 import com.expensetracker.app.ui.components.ChartSlice
 import com.expensetracker.app.ui.components.DonutPieChart
+import com.expensetracker.app.ui.components.BarChartItem
+import com.expensetracker.app.ui.components.ExpenseBarChart
 import com.expensetracker.app.ui.theme.*
 import com.expensetracker.app.data.local.dao.CategorySummary
 import com.expensetracker.app.ui.viewmodel.ExpenseViewModel
 import com.expensetracker.app.ui.viewmodel.TimePeriod
+import com.expensetracker.app.ui.viewmodel.ComparisonPeriod
 import com.expensetracker.app.utils.CurrencyUtils
 
 @Composable
@@ -41,6 +44,10 @@ fun StatisticsScreen(
     val totalIncome by viewModel.statsTotalIncome.collectAsState()
     val categorySummaries by viewModel.statsCategorySummaries.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
+
+    val comparisonPeriod by viewModel.comparisonPeriod.collectAsState()
+    val weeklyBars by viewModel.weeklyComparisonBars.collectAsState()
+    val monthlyBars by viewModel.monthlyComparisonBars.collectAsState()
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
@@ -63,10 +70,10 @@ fun StatisticsScreen(
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Left Pane: Overview (Period Selector, Totals, Donut Chart)
+            // Left Pane: Overview (Period Selector, Totals, Bar Chart & Donut Chart)
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(1.1f)
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -81,6 +88,14 @@ fun StatisticsScreen(
                     totalIncome = totalIncome
                 )
 
+                // Biểu đồ cột thể hiện mức độ chi tiêu giữa các tuần/tháng
+                StatsBarChartCard(
+                    comparisonPeriod = comparisonPeriod,
+                    weeklyBars = weeklyBars,
+                    monthlyBars = monthlyBars,
+                    onPeriodChanged = { viewModel.setComparisonPeriod(it) }
+                )
+
                 StatsChartCard(
                     chartSlices = chartSlices,
                     totalExpense = totalExpense
@@ -92,7 +107,7 @@ fun StatisticsScreen(
             // Right Pane: Detailed Category Breakdown
             Column(
                 modifier = Modifier
-                    .weight(1.1f)
+                    .weight(1f)
                     .fillMaxHeight()
             ) {
                 Text(
@@ -163,6 +178,17 @@ fun StatisticsScreen(
                     )
                 }
 
+                // Biểu đồ cột: Mức độ chi tiêu giữa các tuần/tháng
+                item {
+                    StatsBarChartCard(
+                        comparisonPeriod = comparisonPeriod,
+                        weeklyBars = weeklyBars,
+                        monthlyBars = monthlyBars,
+                        onPeriodChanged = { viewModel.setComparisonPeriod(it) }
+                    )
+                }
+
+                // Biểu đồ tròn: Cơ cấu theo danh mục
                 item {
                     StatsChartCard(
                         chartSlices = chartSlices,
@@ -308,6 +334,129 @@ private fun StatsTotalsRow(
                     color = IncomeGreen
                 )
             }
+        }
+    }
+}
+
+/**
+ * Thẻ biểu đồ cột so sánh chi tiêu giữa các tuần trong tháng hoặc các tháng trong năm
+ */
+@Composable
+private fun StatsBarChartCard(
+    comparisonPeriod: ComparisonPeriod,
+    weeklyBars: List<BarChartItem>,
+    monthlyBars: List<BarChartItem>,
+    onPeriodChanged: (ComparisonPeriod) -> Unit
+) {
+    val items = if (comparisonPeriod == ComparisonPeriod.WEEKLY) weeklyBars else monthlyBars
+    val totalPeriodExpense = items.sumOf { it.value }
+    val avgExpense = if (items.isNotEmpty()) totalPeriodExpense / items.size else 0.0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = ExpressiveHeroShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(1.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            // Header Row: Tiêu đề và nút chuyển đổi [Tuần | Tháng]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Mức độ chi tiêu",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (comparisonPeriod == ComparisonPeriod.WEEKLY) "So sánh các tuần trong tháng" else "So sánh 6 tháng gần nhất",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                // Nút chuyển đổi viên thuốc nhỏ: Tuần | Tháng
+                Row(
+                    modifier = Modifier
+                        .height(34.dp)
+                        .clip(ExpressivePillShape)
+                        .background(Color(0xFFF1F5F9))
+                        .padding(2.dp)
+                ) {
+                    val isWeekly = comparisonPeriod == ComparisonPeriod.WEEKLY
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .clip(ExpressivePillShape)
+                            .background(if (isWeekly) Color.White else Color.Transparent)
+                            .clickable { onPeriodChanged(ComparisonPeriod.WEEKLY) }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tuần",
+                            fontSize = 11.sp,
+                            fontWeight = if (isWeekly) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isWeekly) PrimaryGreenDark else Color(0xFF64748B)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .clip(ExpressivePillShape)
+                            .background(if (!isWeekly) Color.White else Color.Transparent)
+                            .clickable { onPeriodChanged(ComparisonPeriod.MONTHLY) }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tháng",
+                            fontSize = 11.sp,
+                            fontWeight = if (!isWeekly) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isWeekly) PrimaryGreenDark else Color(0xFF64748B)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Dòng thông tin tổng & trung bình
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF8FAFC))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Trung bình: ${CurrencyUtils.formatCompactVnd(avgExpense)} / ${if (comparisonPeriod == ComparisonPeriod.WEEKLY) "tuần" else "tháng"}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF475569),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Tổng: ${CurrencyUtils.formatCompactVnd(totalPeriodExpense)}",
+                    fontSize = 12.sp,
+                    color = PrimaryGreenDark,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Biểu đồ cột động
+            ExpenseBarChart(
+                items = items,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

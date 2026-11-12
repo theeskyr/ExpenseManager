@@ -103,4 +103,30 @@ object CurrencyUtils {
         val digitsOnly = clean.filter { it.isDigit() }
         return digitsOnly.toDoubleOrNull()
     }
+
+    /**
+     * Định dạng số tiền rút gọn dễ nhìn trên biểu đồ cột:
+     * - 45.000 -> 45k
+     * - 500.333 -> 500k
+     * - 1.800.000 -> 1.8tr
+     * - 15.000.000 -> 15tr
+     */
+    fun formatCompactVnd(amount: Double): String {
+        if (amount <= 0.0) return "0"
+        return when {
+            amount >= 1_000_000_000.0 -> {
+                val v = amount / 1_000_000_000.0
+                if (v >= 10.0 || v % 1.0 == 0.0) "${v.toInt()}tỷ" else String.format(Locale.US, "%.1ftỷ", v)
+            }
+            amount >= 1_000_000.0 -> {
+                val v = amount / 1_000_000.0
+                if (v >= 10.0 || v % 1.0 == 0.0) "${v.toInt()}tr" else String.format(Locale.US, "%.1ftr", v)
+            }
+            amount >= 1_000.0 -> {
+                val v = amount / 1_000.0
+                if (v >= 100.0 || v % 1.0 == 0.0) "${v.toInt()}k" else String.format(Locale.US, "%.0fk", v)
+            }
+            else -> "${amount.toInt()}"
+        }
+    }
 }

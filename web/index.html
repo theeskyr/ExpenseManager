@@ -40,8 +40,8 @@
   <div class="mx-auto flex min-h-screen max-w-lg flex-col bg-slate-50 shadow-2xl safe-top">
     
     <!-- Top Header Bar -->
-    <header class="flex items-center justify-between border-b border-slate-100 bg-white/90 px-4 py-3 backdrop-blur-md sticky top-0 z-30">
-      <div class="flex items-center space-x-2">
+    <header class="flex items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-md sticky top-0 z-30">
+      <div class="flex items-center space-x-2.5 cursor-pointer" onclick="switchTab('home')">
         <div class="flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm">
           <i data-lucide="wallet" class="h-5 w-5"></i>
         </div>
@@ -51,6 +51,9 @@
         </div>
       </div>
       <div class="flex items-center space-x-1.5">
+        <button onclick="switchTab('accounts')" title="Ví tiền & Tài khoản" class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200">
+          <i data-lucide="credit-card" class="h-4 w-4"></i>
+        </button>
         <button onclick="switchTab('ai')" title="Trợ lý AI" class="flex h-8 w-8 items-center justify-center rounded-full bg-purple-50 text-purple-700 transition hover:bg-purple-100">
           <i data-lucide="sparkles" class="h-4 w-4"></i>
         </button>
@@ -69,12 +72,12 @@
     <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-100 backdrop-blur-lg safe-bottom">
       <div class="mx-auto max-w-lg flex items-center justify-around px-2 py-1.5">
         
-        <button id="nav-home" onclick="switchTab('home')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+        <button id="nav-home" onclick="switchTab('home')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95 text-emerald-600 font-bold">
           <i data-lucide="home" class="h-5 w-5"></i>
           <span class="mt-0.5 text-[10px]">Trang chủ</span>
         </button>
 
-        <button id="nav-stats" onclick="switchTab('stats')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+        <button id="nav-stats" onclick="switchTab('stats')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95 text-slate-400">
           <i data-lucide="pie-chart" class="h-5 w-5"></i>
           <span class="mt-0.5 text-[10px]">Thống kê</span>
         </button>
@@ -84,17 +87,17 @@
           <i data-lucide="plus" class="h-6 w-6"></i>
         </button>
 
-        <button id="nav-split" onclick="switchTab('split')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+        <button id="nav-split" onclick="switchTab('split')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95 text-slate-400">
           <i data-lucide="users" class="h-5 w-5"></i>
           <span class="mt-0.5 text-[10px]">Chia tiền</span>
         </button>
 
-        <button id="nav-trips" onclick="switchTab('trips')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+        <button id="nav-trips" onclick="switchTab('trips')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95 text-slate-400">
           <i data-lucide="luggage" class="h-5 w-5"></i>
           <span class="mt-0.5 text-[10px]">Chuyến đi</span>
         </button>
 
-        <button id="nav-ai" onclick="switchTab('ai')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95">
+        <button id="nav-ai" onclick="switchTab('ai')" class="flex flex-col items-center py-1 px-2.5 transition active:scale-95 text-slate-400">
           <i data-lucide="bot" class="h-5 w-5"></i>
           <span class="mt-0.5 text-[10px]">Trợ lý AI</span>
         </button>
@@ -104,7 +107,7 @@
 
   </div>
 
-  <!-- Modal: Add Transaction -->
+  <!-- Modal 1: Add Transaction -->
   <div id="add-transaction-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
     <div class="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4 animate-in fade-in duration-200">
       
@@ -123,7 +126,7 @@
 
       <!-- Amount input with shortcut preview -->
       <div>
-        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Số tiền (Hỗ trợ gõ tắt: 50k, 1.5tr)</label>
+        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Số tiền (Gõ tắt: 50k, 1.5tr)</label>
         <div class="relative mt-1">
           <input id="tx-amount" type="text" placeholder="Ví dụ: 45k hoặc 1.5tr" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-extrabold outline-none focus:border-emerald-500 text-slate-900" oninput="previewAmount(this.value)" />
           <span id="amount-preview" class="absolute right-4 top-3.5 text-xs font-bold text-emerald-600"></span>
@@ -133,18 +136,14 @@
       <!-- Category selection chips -->
       <div>
         <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Danh mục</label>
-        <div id="category-chips" class="mt-1 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
-          <!-- Filled dynamically -->
-        </div>
+        <div id="category-chips" class="mt-1 flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1"></div>
       </div>
 
       <!-- Account selection -->
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nguồn tiền / Ví</label>
-          <select id="tx-account" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800">
-            <!-- Filled dynamically -->
-          </select>
+          <select id="tx-account" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800"></select>
         </div>
         <div>
           <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ghi chú</label>
@@ -157,6 +156,230 @@
         Lưu giao dịch
       </button>
 
+    </div>
+  </div>
+
+  <!-- Modal 2: Add Split Member -->
+  <div id="add-member-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Thêm người tham gia</h3>
+        <button onclick="closeModal('add-member-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên bạn bè / Thành viên</label>
+        <input id="new-member-name" type="text" placeholder="Ví dụ: Hoàng, Mai, Tuấn Anh..." class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <button onclick="submitAddMember()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        + Thêm vào nhóm
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 3: Add Split Item -->
+  <div id="add-split-item-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Thêm món / Khoản chi nhóm</h3>
+        <button onclick="closeModal('add-split-item-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên món / Khoản chi</label>
+        <input id="split-item-title" type="text" placeholder="Ví dụ: Nồi lẩu, Nước ngọt, Tiền xe..." class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Số tiền (Hỗ trợ 50k, 1.5tr)</label>
+        <div class="relative mt-1">
+          <input id="split-item-amount" type="text" placeholder="Ví dụ: 350k hoặc 1.2tr" oninput="previewSplitItemAmount(this.value)" class="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold outline-none focus:border-emerald-500" />
+          <span id="split-item-amount-preview" class="absolute right-4 top-3 text-xs font-bold text-emerald-600"></span>
+        </div>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Ai đã trả tiền trước?</label>
+        <select id="split-item-payer" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800"></select>
+      </div>
+      <button onclick="submitAddSplitItem()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        Lưu món chi
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 4: Create Trip -->
+  <div id="create-trip-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Tạo chuyến đi mới</h3>
+        <button onclick="closeModal('create-trip-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên chuyến đi</label>
+        <input id="trip-title" type="text" placeholder="Ví dụ: Du lịch Đà Lạt 3N2Đ" class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Điểm đến</label>
+          <input id="trip-destination" type="text" placeholder="Đà Lạt, Phú Quốc..." class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-medium outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Số ngày</label>
+          <input id="trip-days" type="number" min="1" max="30" value="3" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500" />
+        </div>
+      </div>
+      <button onclick="submitCreateTrip()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        Tạo chuyến đi
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 5: Add Trip Expense -->
+  <div id="add-trip-expense-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Thêm chi phí cho chuyến đi</h3>
+        <button onclick="closeModal('add-trip-expense-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên khoản chi</label>
+        <input id="trip-exp-title" type="text" placeholder="Khách sạn, Tiền taxi, Vé vào cổng..." class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Số tiền (50k, 1.5tr)</label>
+          <input id="trip-exp-amount" type="text" placeholder="250k" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Chi vào ngày</label>
+          <select id="trip-exp-day" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800"></select>
+        </div>
+      </div>
+      <button onclick="submitAddTripExpense()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        Lưu chi phí
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 6: Add Investment -->
+  <div id="add-investment-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Thêm khoản đầu tư</h3>
+        <button onclick="closeModal('add-investment-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên tài sản đầu tư</label>
+        <input id="inv-name" type="text" placeholder="Vàng nhẫn 9999, Cổ phiếu FPT, Chứng chỉ quỹ..." class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Vốn đầu tư ban đầu</label>
+          <input id="inv-invested" type="text" placeholder="Ví dụ: 10tr" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Giá trị hiện tại</label>
+          <input id="inv-current" type="text" placeholder="Ví dụ: 12.5tr" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500" />
+        </div>
+      </div>
+      <button onclick="submitAddInvestment()" class="w-full rounded-2xl bg-indigo-600 py-3 text-sm font-bold text-white shadow hover:bg-indigo-700">
+        Lưu danh mục
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 7: Add Account / Wallet -->
+  <div id="add-account-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Thêm Ví / Tài khoản mới</h3>
+        <button onclick="closeModal('add-account-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 uppercase">Tên tài khoản / Ví</label>
+        <input id="acc-name" type="text" placeholder="Ví dụ: Vietcombank, TPBank, Heo đất..." class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold outline-none focus:border-emerald-500" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Loại tài khoản</label>
+          <select id="acc-type" class="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none text-slate-800">
+            <option value="BANK">Ngân hàng</option>
+            <option value="CASH">Tiền mặt</option>
+            <option value="E_WALLET">Ví điện tử</option>
+            <option value="RESERVE">Quỹ khẩn cấp</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Số dư ban đầu</label>
+          <input id="acc-balance" type="text" placeholder="0 hoặc 5tr" class="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-bold outline-none focus:border-emerald-500" />
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <input id="acc-is-reserve" type="checkbox" class="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+        <label for="acc-is-reserve" class="text-xs font-semibold text-slate-700">Đặt làm Quỹ dự phòng / Khẩn cấp</label>
+      </div>
+      <button onclick="submitAddAccount()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        Tạo tài khoản
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 8: Edit Wallet Balance -->
+  <div id="edit-balance-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-sm rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Cập nhật số dư thực tế</h3>
+        <button onclick="closeModal('edit-balance-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div>
+        <p id="edit-balance-acc-name" class="text-xs text-slate-500 font-semibold"></p>
+        <div class="mt-2">
+          <label class="text-[11px] font-bold text-slate-500 uppercase">Số dư thực tế mới</label>
+          <input id="edit-balance-input" type="text" placeholder="Ví dụ: 3.5tr hoặc 3500000" class="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold outline-none focus:border-emerald-500" />
+        </div>
+      </div>
+      <input type="hidden" id="edit-balance-acc-id" />
+      <button onclick="submitEditBalance()" class="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow hover:bg-emerald-700">
+        Cập nhật số dư
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 9: OCR Bill Processing & Scanned Items -->
+  <div id="ocr-modal" class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 hidden">
+    <div class="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white p-5 shadow-2xl safe-bottom space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800">Bóc tách hóa đơn AI</h3>
+        <button onclick="closeModal('ocr-modal')" class="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+
+      <div id="ocr-loading-view" class="py-8 text-center space-y-3">
+        <div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-purple-200 border-t-purple-600"></div>
+        <p class="text-xs font-bold text-purple-700">Gemini AI đang đọc và phân tích hóa đơn...</p>
+        <p class="text-[11px] text-slate-400">Vui lòng đợi vài giây</p>
+      </div>
+
+      <div id="ocr-result-view" class="hidden space-y-3">
+        <p class="text-xs font-bold text-slate-700">Đã nhận diện các món:</p>
+        <div id="ocr-items-list" class="space-y-1.5 max-h-56 overflow-y-auto"></div>
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button onclick="applyOcrToSplitBill()" class="rounded-2xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow">Đưa vào Chia tiền</button>
+          <button onclick="applyOcrToPersonalTx()" class="rounded-2xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow">Ghi vào Chi tiêu</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -193,6 +416,14 @@
       }
     }
 
+    function previewSplitItemAmount(val) {
+      const parsed = parseMoneyInput(val);
+      const prevEl = document.getElementById('split-item-amount-preview');
+      if (prevEl) {
+        prevEl.innerText = parsed > 0 ? formatMoney(parsed) : '';
+      }
+    }
+
     function populateCategoryChips() {
       const container = document.getElementById('category-chips');
       if (!container) return;
@@ -215,20 +446,6 @@
       sel.innerHTML = state.accounts.map((a) => `<option value="${a.id}">${a.name} (${formatMoney(a.currentBalance)})</option>`).join('');
     }
 
-    // Hook when opening modal
-    const originalOpenModal = openModal;
-    openModal = function(id) {
-      if (id === 'add-transaction-modal') {
-        populateCategoryChips();
-        populateAccountOptions();
-        document.getElementById('tx-amount').value = '';
-        document.getElementById('amount-preview').innerText = '';
-        document.getElementById('tx-note').value = '';
-      }
-      originalOpenModal(id);
-      if (window.lucide) lucide.createIcons();
-    };
-
     async function handleSaveTransaction() {
       const amtStr = document.getElementById('tx-amount').value;
       const amount = parseMoneyInput(amtStr);
@@ -249,6 +466,15 @@
       });
 
       closeModal('add-transaction-modal');
+    }
+
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.log('SW registration error:', err);
+        });
+      });
     }
   </script>
 
