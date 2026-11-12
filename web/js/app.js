@@ -961,32 +961,84 @@ function renderSplitScreen() {
     <div class="space-y-4 pb-24">
       <!-- Result Card if calculated -->
       ${result ? `
-        <div class="rounded-3xl bg-gradient-to-br from-indigo-900 to-purple-900 p-5 text-white shadow-lg space-y-4">
+        <div id="split-result-card" class="rounded-3xl bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-950 p-5 text-white shadow-xl space-y-4 animate-in fade-in duration-200">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold uppercase text-purple-200">Kết quả chia tiền</span>
-            <button onclick="SplitBillCalculator.exportToCSV(state.splitBill.result)" class="flex items-center space-x-1 rounded-full bg-white/20 px-3 py-1 text-xs font-bold hover:bg-white/30">
-              <i data-lucide="download" class="h-3 w-3"></i>
-              <span>Xuất CSV</span>
+            <span class="rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-200">
+              ⚡ Kết quả chia tiền AI
+            </span>
+            <button onclick="state.splitBill.result = null; renderApp();" class="text-xs font-bold text-purple-300 hover:text-white transition">
+              ✖ Đóng
             </button>
           </div>
-          <div>
-            <h3 class="text-2xl font-black">${formatMoney(result.totalAmount)}</h3>
-            <p class="text-xs text-purple-200">Trung bình: <span class="font-bold text-white">${formatMoney(result.perPersonAvg)}</span> / người</p>
+
+          <div class="grid grid-cols-2 gap-2 border-b border-white/10 pb-3">
+            <div>
+              <p class="text-[10px] text-purple-200 uppercase font-bold">Tổng chi phí</p>
+              <h3 class="text-2xl font-black text-amber-300">${formatMoney(result.totalAmount)}</h3>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] text-purple-200 uppercase font-bold">Bình quân / người</p>
+              <p class="text-sm font-extrabold text-white mt-1">${formatMoney(result.perPersonAvg)}</p>
+            </div>
           </div>
 
+          <!-- Chi tiết từng thành viên -->
+          <div class="space-y-2 pt-1">
+            <h4 class="text-xs font-bold text-purple-200 uppercase tracking-wider">Phân bổ chi phí từng người:</h4>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+              ${result.memberSummaries.map((ms) => `
+                <div class="rounded-2xl bg-white/10 p-2.5 text-xs space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold flex items-center space-x-1">
+                      <span>${ms.member.name}</span>
+                      ${ms.member.isCurrentUser ? '<span class="text-[9px] bg-emerald-500 text-white rounded px-1 font-bold">Tôi</span>' : ''}
+                    </span>
+                    <span class="font-extrabold ${ms.netBalance > 1 ? 'text-emerald-400' : (ms.netBalance < -1 ? 'text-rose-300' : 'text-slate-300')}">
+                      ${ms.netBalance > 1 ? `Nhận lại: +${formatMoney(ms.netBalance)}` : (ms.netBalance < -1 ? `Cần trả: -${formatMoney(Math.abs(ms.netBalance))}` : 'Đã hòa')}
+                    </span>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-purple-200">
+                    <span>Đã chi: ${formatMoney(ms.totalPaid)}</span>
+                    <span>Phần chia: ${formatMoney(ms.fairShare)}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Kế hoạch chuyển khoản tối ưu -->
           <div class="space-y-2 pt-2 border-t border-white/10">
-            <h4 class="text-xs font-bold text-purple-200">Ai cần chuyển cho ai:</h4>
-            ${result.settlements.length === 0 ? '<p class="text-xs text-emerald-300">Tất cả mọi người đã hòa tiền!</p>' : `
+            <h4 class="text-xs font-bold text-purple-200 uppercase tracking-wider">Kế hoạch chuyển khoản gọn nhất:</h4>
+            ${result.settlements.length === 0 ? '<p class="text-xs text-emerald-300">🎉 Tất cả mọi người đã thanh toán hòa tiền sòng phẳng!</p>' : `
               <div class="space-y-1.5">
-                ${result.settlements.map((st) => `
-                  <div class="flex items-center justify-between rounded-xl bg-white/10 px-3 py-2 text-xs">
-                    <span><b>${st.fromMemberName}</b> chuyển <b>${st.toMemberName}</b></span>
+                ${result.settlements.map((st, idx) => `
+                  <div class="flex items-center justify-between rounded-xl bg-white/15 px-3 py-2 text-xs">
+                    <div class="flex items-center space-x-2">
+                      <span class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-black text-slate-900">${idx + 1}</span>
+                      <span><b>${st.fromMemberName}</b> <span class="text-purple-300">chuyển</span> <b>${st.toMemberName}</b></span>
+                    </div>
                     <span class="font-black text-amber-300">${formatMoney(st.amount)}</span>
                   </div>
                 `).join('')}
               </div>
             `}
           </div>
+
+          <!-- Action buttons for result -->
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+            <button onclick="copySplitBillResult()" class="flex items-center justify-center space-x-1.5 rounded-xl bg-white/20 py-2.5 text-xs font-bold text-white hover:bg-white/30 transition active:scale-95">
+              <i data-lucide="copy" class="h-3.5 w-3.5"></i>
+              <span>Sao chép kết quả</span>
+            </button>
+            <button onclick="saveSplitMyShareToPersonal()" class="flex items-center justify-center space-x-1.5 rounded-xl bg-emerald-500 py-2.5 text-xs font-bold text-white shadow hover:bg-emerald-600 transition active:scale-95">
+              <i data-lucide="wallet" class="h-3.5 w-3.5"></i>
+              <span>Ghi vào ví cá nhân</span>
+            </button>
+          </div>
+          <button onclick="SplitBillCalculator.exportToCSV(state.splitBill.result)" class="w-full flex items-center justify-center space-x-1.5 rounded-xl bg-white/10 py-2 text-[11px] font-semibold text-purple-200 hover:bg-white/20 transition">
+            <i data-lucide="download" class="h-3.5 w-3.5"></i>
+            <span>Xuất file Excel / CSV</span>
+          </button>
         </div>
       ` : ''}
 
@@ -994,7 +1046,7 @@ function renderSplitScreen() {
       <div class="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm space-y-3">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-bold text-slate-800">1. Thành viên tham gia (${members.length})</h3>
-          <button onclick="openModal('add-member-modal')" class="text-xs font-bold text-emerald-600">+ Thêm bạn</button>
+          <button onclick="openModal('add-member-modal')" class="text-xs font-bold text-emerald-600 hover:text-emerald-700">+ Thêm bạn</button>
         </div>
         <div class="flex flex-wrap gap-2">
           ${members.map((m) => `
@@ -1011,8 +1063,8 @@ function renderSplitScreen() {
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-bold text-slate-800">2. Các món & khoản chi (${items.length})</h3>
           <div class="flex space-x-2">
-            <button onclick="openOcrScanModal('split')" class="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700">⚡ Quét Bill AI</button>
-            <button onclick="openAddSplitItemModal()" class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">+ Thêm món</button>
+            <button onclick="openOcrScanModal('split')" class="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 hover:bg-purple-100 transition active:scale-95">⚡ Quét Bill AI</button>
+            <button onclick="openAddSplitItemModal()" class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition active:scale-95">+ Thêm món</button>
           </div>
         </div>
 
@@ -1021,16 +1073,16 @@ function renderSplitScreen() {
         ` : `
           <div class="space-y-2">
             ${items.map((it, idx) => {
-              const payer = members.find((m) => m.id === it.paidByMemberId) || { name: 'Ai đó' };
+              const payer = members.find((m) => m.id === it.paidByMemberId) || { name: 'Tôi' };
               return `
-                <div class="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs">
+                <div class="flex items-center justify-between rounded-xl bg-slate-50 p-2.5 text-xs border border-slate-100">
                   <div>
                     <p class="font-bold text-slate-800">${it.title}</p>
                     <p class="text-[11px] text-slate-400">${payer.name} đã trả</p>
                   </div>
                   <div class="flex items-center space-x-2">
-                    <span class="font-bold text-slate-900">${formatMoney(it.amount)}</span>
-                    <button onclick="removeSplitItem(${idx})" class="text-slate-400 hover:text-rose-500">×</button>
+                    <span class="font-extrabold text-slate-900">${formatMoney(it.amount)}</span>
+                    <button onclick="removeSplitItem(${idx})" title="Xóa món" class="text-slate-400 hover:text-rose-500 p-1 font-bold">×</button>
                   </div>
                 </div>
               `;
@@ -1039,10 +1091,33 @@ function renderSplitScreen() {
         `}
       </div>
 
-      <!-- Action Button -->
-      <button onclick="calculateSplitBill()" class="w-full rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-md transition active:scale-95">
-        ⚡ Tính toán và chia tiền ngay
-      </button>
+      <!-- Action Button / Result notification -->
+      ${result ? `
+        <div class="space-y-2">
+          <div class="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-center">
+            <p class="text-xs font-bold text-emerald-800">✅ Đã tính toán chia tiền xong!</p>
+            <p class="text-[11px] text-emerald-600">Xem bảng chi tiết phía trên hoặc bấm các nút bên dưới</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="copySplitBillResult()" class="rounded-2xl bg-indigo-600 py-3 text-xs font-bold text-white shadow hover:bg-indigo-700 transition active:scale-95 flex items-center justify-center space-x-1">
+              <i data-lucide="copy" class="h-4 w-4"></i>
+              <span>Sao chép kết quả</span>
+            </button>
+            <button onclick="saveSplitMyShareToPersonal()" class="rounded-2xl bg-emerald-600 py-3 text-xs font-bold text-white shadow hover:bg-emerald-700 transition active:scale-95 flex items-center justify-center space-x-1">
+              <i data-lucide="wallet" class="h-4 w-4"></i>
+              <span>Ghi vào ví</span>
+            </button>
+          </div>
+          <button onclick="calculateSplitBill()" class="w-full rounded-2xl bg-slate-100 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-200 transition">
+            🔄 Tính toán lại
+          </button>
+        </div>
+      ` : `
+        <button onclick="calculateSplitBill()" class="w-full rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-md transition active:scale-95 hover:bg-emerald-700 flex items-center justify-center space-x-1.5">
+          <i data-lucide="calculator" class="h-4 w-4"></i>
+          <span>⚡ Tính toán và chia tiền ngay</span>
+        </button>
+      `}
     </div>
   `;
 }
@@ -1113,7 +1188,7 @@ function removeSplitItem(index) {
 }
 
 function calculateSplitBill() {
-  if (state.splitBill.items.length === 0) {
+  if (!state.splitBill.items || state.splitBill.items.length === 0) {
     alert('Vui lòng thêm ít nhất 1 khoản chi trước khi tính toán!');
     return;
   }
@@ -1123,6 +1198,85 @@ function calculateSplitBill() {
     state.splitBill.items
   );
   renderApp();
+
+  // Tự động cuộn mượt mà lên bảng kết quả
+  setTimeout(() => {
+    const card = document.getElementById('split-result-card');
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      const mainEl = document.getElementById('main-content');
+      if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, 60);
+}
+
+function copySplitBillResult() {
+  const result = state.splitBill.result;
+  if (!result) return;
+
+  const eventTitle = state.splitBill.eventTitle || 'Bữa ăn / Sự kiện chia tiền';
+  let text = `⚡ KẾT QUẢ CHIA TIỀN: ${eventTitle.toUpperCase()}\n`;
+  text += `💰 Tổng chi phí: ${formatMoney(result.totalAmount)}\n`;
+  text += `👥 Trung bình mỗi người: ${formatMoney(result.perPersonAvg)}\n\n`;
+
+  text += `📊 PHÂN BỔ TỪNG NGƯỜI:\n`;
+  result.memberSummaries.forEach((ms) => {
+    const status = ms.netBalance > 1
+      ? `-> Nhận lại: +${formatMoney(ms.netBalance)}`
+      : (ms.netBalance < -1 ? `-> Cần chuyển: -${formatMoney(Math.abs(ms.netBalance))}` : `-> Đã hòa tiền`);
+    text += `• ${ms.member.name}${ms.member.isCurrentUser ? ' (Tôi)' : ''}: Đã chi ${formatMoney(ms.totalPaid)} | Phần chia ${formatMoney(ms.fairShare)} ${status}\n`;
+  });
+
+  text += `\n⚡ KẾ HOẠCH CHUYỂN KHOẢN TỐI ƯU:\n`;
+  if (result.settlements.length === 0) {
+    text += `• Tất cả mọi người đã sòng phẳng hòa tiền, không cần chuyển khoản thêm.\n`;
+  } else {
+    result.settlements.forEach((s, idx) => {
+      text += `${idx + 1}. ${s.fromMemberName} chuyển cho ${s.toMemberName}: ${formatMoney(s.amount)}\n`;
+    });
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('📋 Đã sao chép kết quả chia tiền vào clipboard! Bạn có thể dán vào nhóm Zalo / Messenger.');
+    }).catch(() => {
+      prompt('Sao chép nội dung bên dưới:', text);
+    });
+  } else {
+    prompt('Sao chép nội dung bên dưới:', text);
+  }
+}
+
+async function saveSplitMyShareToPersonal() {
+  const result = state.splitBill.result;
+  if (!result || !result.memberSummaries) return;
+
+  const mySummary = result.memberSummaries.find((m) => m.member.isCurrentUser) || result.memberSummaries[0];
+  if (!mySummary || mySummary.fairShare <= 0) {
+    alert('Không tìm thấy khoản chi tiêu cá nhân hợp lệ để ghi nhận.');
+    return;
+  }
+
+  const amountToRecord = mySummary.fairShare;
+  const eventTitle = state.splitBill.eventTitle || 'Bữa ăn / Sự kiện chia tiền';
+
+  if (confirm(`Ghi nhận phần chi của bạn (${formatMoney(amountToRecord)}) cho "${eventTitle}" vào sổ chi tiêu cá nhân?`)) {
+    const cat = state.categories.find((c) => c.type === 'EXPENSE' && (c.id === 'food' || c.name.includes('Ăn uống') || c.name.includes('Đi chơi'))) || state.categories[0];
+    const acc = state.accounts[0];
+
+    await addTransaction({
+      amount: amountToRecord,
+      type: 'EXPENSE',
+      categoryId: cat ? cat.id : 'food',
+      accountId: acc ? acc.id : 1,
+      note: `Chia tiền: ${eventTitle}`,
+      timestamp: Date.now()
+    });
+
+    alert(`✅ Đã ghi nhận ${formatMoney(amountToRecord)} vào sổ Chi tiêu cá nhân!`);
+  }
 }
 
 // ----------------- TRIPS SCREEN -----------------

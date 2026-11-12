@@ -28,7 +28,10 @@ const SplitBillCalculator = {
 
     items.forEach((item) => {
       const amount = Number(item.amount) || 0;
-      paidMap[item.paidByMemberId] = (paidMap[item.paidByMemberId] || 0) + amount;
+      // Đảm bảo người trả tiền luôn tương ứng với một thành viên hợp lệ
+      const validPayer = members.find((m) => m.id === item.paidByMemberId) || members[0];
+      const payerId = validPayer ? validPayer.id : members[0].id;
+      paidMap[payerId] = (paidMap[payerId] || 0) + amount;
 
       const sharers = (!item.splitAmongMemberIds || item.splitAmongMemberIds.length === 0)
         ? members.map((m) => m.id)
